@@ -1,0 +1,1298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Haunted House Builder (player)</title>
+<link rel="icon" href="data:,">
+<!-- This page is what X loads inside the post. Keep it out of Google: -->
+<meta name="robots" content="noindex">
+<style>
+  /* touch-action:none + overflow:hidden only affect OUR page inside the frame: no pinch-zoom, no rubber-band, no scroll */
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05070a;
+            touch-action:none;overscroll-behavior:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+  canvas{display:block;width:100%;height:100%;outline:none}
+  #loading{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+           background:#05070a;color:#c8d2dc;font:bold 16px monospace;z-index:9;text-align:center}
+  #loading .dot{width:12px;height:12px;margin-top:12px;background:#e0242a;animation:b .5s infinite alternate}
+  @keyframes b{to{transform:translateY(-12px)}}
+  #loading.off{display:none}
+  /* corner buttons: top corners (X can cover the bottom 30% on phones), at least 44x44 px */
+  .ctl{position:fixed;top:2px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;
+       border:0;border-radius:10px;background:rgba(18,10,20,.55);color:#fff;font:20px system-ui,sans-serif;
+       text-decoration:none;cursor:pointer;padding:0;z-index:5;-webkit-tap-highlight-color:transparent}
+  #mute{right:2px}
+  #open{left:2px;display:none}
+  html.framed #open{display:flex}
+  html.card #open,html.card #mute{display:none}
+</style>
+</head>
+<body>
+<div id="loading">Haunted House Builder<div class="dot"></div></div>
+<canvas id="c" tabindex="0" aria-label="Haunted House Builder. Drag or use the arrow keys to look around, tap to act. Contains jump scares."></canvas>
+<button id="mute" class="ctl" data-control aria-label="Sound" aria-pressed="false">🔊</button>
+<a id="open" class="ctl" data-control href="game.html?v=1" aria-label="Open the game in a new tab">↗</a>
+<script>
+"use strict";
+const ST = self.ST = { cfg: {"slug":"haunted-house-builder","title":"Haunted House Builder","v":1,"music":false,"addons":["codemusic","painted","brag","jukebox"],"render3d":{"dpr_cap":1.25,"floor":0.55}}, TEST_BUILD: false, Q: new URLSearchParams(location.search), sw: {}, switched: false };
+ST.FONT = {"A":".###./#...#/#...#/#####/#...#/#...#/#...#","B":"####./#...#/#...#/####./#...#/#...#/####.","C":".###./#...#/#..../#..../#..../#...#/.###.","D":"####./#...#/#...#/#...#/#...#/#...#/####.","E":"#####/#..../#..../####./#..../#..../#####","F":"#####/#..../#..../####./#..../#..../#....","G":".###./#...#/#..../#.###/#...#/#...#/.####","H":"#...#/#...#/#...#/#####/#...#/#...#/#...#","I":"###/.#./.#./.#./.#./.#./###","J":"..###/...#./...#./...#./#..#./#..#./.##..","K":"#...#/#..#./#.#../##.../#.#../#..#./#...#","L":"#..../#..../#..../#..../#..../#..../#####","M":"#...#/##.##/#.#.#/#.#.#/#...#/#...#/#...#","N":"#...#/##..#/#.#.#/#..##/#...#/#...#/#...#","O":".###./#...#/#...#/#...#/#...#/#...#/.###.","P":"####./#...#/#...#/####./#..../#..../#....","Q":".###./#...#/#...#/#...#/#.#.#/#..#./.##.#","R":"####./#...#/#...#/####./#.#../#..#./#...#","S":".####/#..../#..../.###./....#/....#/####.","T":"#####/..#../..#../..#../..#../..#../..#..","U":"#...#/#...#/#...#/#...#/#...#/#...#/.###.","V":"#...#/#...#/#...#/#...#/#...#/.#.#./..#..","W":"#...#/#...#/#...#/#.#.#/#.#.#/#.#.#/.#.#.","X":"#...#/#...#/.#.#./..#../.#.#./#...#/#...#","Y":"#...#/#...#/.#.#./..#../..#../..#../..#..","Z":"#####/....#/...#./..#../.#.../#..../#####","0":".###./#...#/#..##/#.#.#/##..#/#...#/.###.","1":".#./##./.#./.#./.#./.#./###","2":".###./#...#/....#/...#./..#../.#.../#####","3":"####./....#/....#/.###./....#/....#/####.","4":"...#./..##./.#.#./#..#./#####/...#./...#.","5":"#####/#..../####./....#/....#/#...#/.###.","6":".###./#..../#..../####./#...#/#...#/.###.","7":"#####/....#/...#./..#../.#.../.#.../.#...","8":".###./#...#/#...#/.###./#...#/#...#/.###.","9":".###./#...#/#...#/.####/....#/....#/.###.",".":"./././././.#",",":"../../../../../.#/#.","!":"#/#/#/#/#/./#","?":".###./#...#/....#/...#./..#../...../..#..",":":"./././#/./#/.","-":".../.../.../###/.../.../...","+":"...../..#../..#../#####/..#../..#../.....","/":"....#/...#./...#./..#../.#.../.#.../#....","%":"##..#/##..#/...#./..#../.#.../#..##/#..##","'":"#/#/./././././","&":".##../#..#./#.#../.#.../#.#.#/#..#./.##.#","(":".#/#./#./#./#./#./.#",")":"#./.#/.#/.#/.#/.#/#.",">":"#.../.#../..#./...#/..#./.#../#...","<":"...#/..#./.#../#.../.#../..#./...#","=":"..../..../####/..../####/..../....","x":"...../...../#...#/.#.#./..#../.#.#./#...#","$":"..#../.####/#.#../.###./..#.#/####./..#.."};
+ST.SAFE = 0.7;                                   // X can cover the bottom 30% on phones: no text or buttons down there
+ST.root = document.documentElement;
+ST.canvas = document.getElementById("c");
+ST.ctx = ST.canvas.getContext("2d", { alpha: false });
+ST.framed = true;
+try { ST.framed = window.self !== window.top; } catch (e) {}
+ST.root.classList.toggle("framed", ST.framed);
+document.addEventListener("click", e => {        // links ALWAYS open a new tab (never replace the game inside X)
+const a = e.target.closest && e.target.closest("a[href]");
+if (!a) return; e.preventDefault(); window.open(a.href, "_blank", "noopener");
+}, true);
+ST.mk = (w, h) => { const c = document.createElement("canvas"); c.width = Math.max(1, w); c.height = Math.max(1, h); return c; };
+ST.DPR = () => Math.min(window.devicePixelRatio || 1, 3);
+ST.cw = 0; ST.ch = 0; ST.L = 0; ST.small = false; ST.fs = 1; ST.BW = 160; ST.BH = 160; ST.sc = 1;
+ST.buf = null; ST.g = null;
+ST.resize = () => {
+if (!innerWidth || !innerHeight) return;       // frames can be 0x0 for a moment; the loop tries again next frame
+const S = ST; S.cw = innerWidth; S.ch = innerHeight;
+S.canvas.width = Math.round(S.cw * S.DPR()); S.canvas.height = Math.round(S.ch * S.DPR());
+S.small = S.ch <= 300 || S.cw <= 360;
+S.root.classList.toggle("card-small", S.small);
+S.L = Math.floor(S.ch * S.SAFE);
+S.fs = S.cw >= 420 ? 2 : S.cw >= 300 ? 1.5 : 1;
+S.BW = 160; S.BH = Math.max(90, Math.min(220, Math.round(160 * S.ch / S.cw))); S.sc = S.cw / S.BW;
+if (!S.buf || S.buf.width !== S.BW || S.buf.height !== S.BH) { S.buf = S.mk(S.BW, S.BH); S.g = S.buf.getContext("2d"); }
+S.SY = Math.floor(S.BH * S.SAFE);              // the safe line in buffer pixels
+if (S.onResize) S.onResize();
+};
+ST.R = (x, y, w, h, c) => { const g = ST.g; g.fillStyle = c; g.fillRect(x | 0, y | 0, Math.max(0, w | 0), Math.max(0, h | 0)); };
+ST.px = (x, y, c) => ST.R(x, y, 1, 1, c);
+ST.ell = (cx, cy, rx, ry, c) => { for (let y = -ry; y <= ry; y++) { const w = Math.round(rx * Math.sqrt(Math.max(0, 1 - (y * y) / (ry * ry || 1)))); ST.R(cx - w, cy + y, 2 * w + 1, 1, c); } };
+ST.dots = (x, y, w, h, c, step = 2, off = 0) => { for (let j = 0; j < h; j++) for (let i = (j + off) % step; i < w; i += step) ST.px(x + i, y + j, c); };
+ST.spr = (rows, x, y, pal, s = 1) => {             // rows = ["..ab..", ...], pal = { a: "#fff" }
+for (let j = 0; j < rows.length; j++) for (let i = 0; i < rows[j].length; i++) { const k = rows[j][i]; if (k !== "." && pal[k]) ST.R(x + i * s, y + j * s, s, s, pal[k]); }
+};
+ST.present = () => {                              // buffer -> screen, crisp
+const c = ST.ctx; c.imageSmoothingEnabled = false; c.drawImage(ST.buf, 0, 0, ST.cw, ST.ch);
+};
+ST.toBuf = (x, y) => ({ x: x / ST.sc, y: y * ST.BH / ST.ch });
+ST.uiBottom = 0; ST.trackUI = true;
+ST.uiTexts = []; ST.hud = []; ST.hudMode = false;
+ST.hudRect = (x, y, w, h) => { if (ST.hudMode) ST.hud.push({ x, y, w, h }); };
+const gwid = c => { const f = ST.FONT[c]; return f ? f.split("/")[0].length : 3; };
+ST.tw = (s, fs) => { let w = 0; for (const c of String(s).toUpperCase()) w += c === " " ? 4 : gwid(c) + 1; return Math.max(0, w - 1) * fs; };
+ST.wrap = (s, maxW, fs) => {
+const words = String(s).toUpperCase().split(/\s+/).filter(Boolean), out = []; let cur = "";
+for (const w of words) { const t = cur ? cur + " " + w : w; if (ST.tw(t, fs) <= maxW || !cur) cur = t; else { out.push(cur); cur = w; } }
+if (cur) out.push(cur); return out;
+};
+ST.text = (s, x, y, color, fs = ST.fs, align = "l", shadow = "#000") => {
+s = String(s).toUpperCase(); const W = ST.tw(s, fs), c = ST.ctx;
+if (align === "c") x -= W / 2; else if (align === "r") x -= W;
+for (const [col, o] of shadow ? [[shadow, Math.max(1, Math.round(fs / 1.5))], [color, 0]] : [[color, 0]]) {
+c.fillStyle = col; c.beginPath(); let cx = x + o;
+for (const ch of s) {
+if (ch === " ") { cx += 4 * fs; continue; }
+const f = ST.FONT[ch]; if (!f) { cx += 4 * fs; continue; }
+const rows = f.split("/");
+for (let j = 0; j < rows.length; j++) for (let i = 0; i < rows[j].length; i++) if (rows[j][i] === "#") c.rect(cx + i * fs, y + o + j * fs, fs, fs);
+cx += (rows[0].length + 1) * fs;
+}
+c.fill();
+}
+if (ST.trackUI) { ST.uiBottom = Math.max(ST.uiBottom, y + 7 * fs + 2); ST.uiTexts.push({ s, x, y, w: W, h: 7 * fs }); }
+ST.hudRect(x, y, W, 7 * fs);
+return W;
+};
+ST.btns = [];
+ST.theme = { fill: "#2a1830", edge: "#f2a444", on: "#f2a444", text: "#f3e4cc", dark: "#0a0610" };
+ST.box = (x, y, w, h, fill, edge) => {
+const c = ST.ctx; c.fillStyle = ST.theme.dark; c.fillRect(x - 1, y - 1, w + 2, h + 2);
+c.fillStyle = edge; c.fillRect(x, y, w, h); c.fillStyle = fill; c.fillRect(x + 2, y + 2, w - 4, h - 4);
+if (ST.trackUI) ST.uiBottom = Math.max(ST.uiBottom, y + h + 1);
+ST.hudRect(x - 1, y - 1, w + 2, h + 2);
+};
+ST.button = (id, x, y, w, h, label, o = {}) => {
+w = Math.max(44, w); h = Math.max(44, h);
+ST.btns.push({ id, x, y, w, h, label: String(label) });
+ST.box(x, y, w, h, o.on ? ST.theme.on : ST.theme.fill, o.edge || ST.theme.edge);
+let fs = o.fs || ST.fs; while (fs > 1 && ST.tw(label, fs) > w - 8) fs -= 0.5;
+ST.text(label, x + w / 2, y + (h - 7 * fs) / 2, o.on ? ST.theme.dark : ST.theme.text, fs, "c", o.on ? null : "#000");
+return { x, y, w, h };
+};
+ST.hitBtn = (x, y) => { for (let i = ST.btns.length - 1; i >= 0; i--) { const q = ST.btns[i]; if (x >= q.x && x <= q.x + q.w && y >= q.y && y <= q.y + q.h) return q; } return null; };
+ST.seed = (Date.now() ^ (Math.random() * 1e9)) >>> 0;
+ST.rand = () => { ST.seed = (ST.seed * 1664525 + 1013904223) >>> 0; return ST.seed / 4294967296; };
+ST.clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+ST.store = (() => {
+let ok = false; const mem = {};
+try { const k = "__st_probe"; localStorage.setItem(k, "1"); ok = localStorage.getItem(k) === "1"; localStorage.removeItem(k); } catch (e) { ok = false; }
+return {
+get ok() { return ok; },
+get(key, def) {
+let raw = null;
+if (ok) { try { raw = localStorage.getItem(key); } catch (e) { ok = false; } }
+if (raw == null) raw = mem[key] == null ? null : mem[key];
+if (raw == null) return def;
+try { return JSON.parse(raw); } catch (e) { return def; }
+},
+set(key, val) {
+if (ST.switched) return false;
+const raw = JSON.stringify(val); mem[key] = raw;
+if (ok) { try { localStorage.setItem(key, raw); return true; } catch (e) { ok = false; } }
+return false;
+},
+};
+})();
+ST.save = {
+key: () => ST.cfg.slug + "-v1", data: {},
+load(defaults) { const o = ST.store.get(this.key(), null); this.data = Object.assign({}, defaults, o && typeof o === "object" ? o : {}); return this.data; },
+write() { return ST.store.set(this.key(), this.data); },
+};
+ST.sound = { on: false, muted: false, music: null, ac: null, master: null, SFX: {} };
+ST.sound.muted = ST.store.get(ST.cfg.slug + "-muted", false) === true;
+ST.muteBtn = document.getElementById("mute");
+ST.showMute = () => { const b = ST.muteBtn, m = ST.sound.muted; if (!b) return; b.textContent = m ? "🔇" : "🔊"; b.setAttribute("aria-pressed", String(m)); b.setAttribute("aria-label", m ? "Turn sound on" : "Turn sound off"); };
+ST.showMute();
+ST.startSound = () => {                            // runs INSIDE a tap (pointerup / touchend / click / key)
+const S = ST.sound;
+if (ST.sw.card) return;
+if (S.on) { if (S.music && S.music.paused && !document.hidden && ST.scene !== "paused") S.music.play().catch(() => {}); return; }
+S.on = true;
+try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (e) {}
+if (ST.cfg.music) {
+S.music = new Audio("music.wav?v=" + ST.cfg.v); S.music.loop = true; S.music.volume = 0.35; S.music.muted = S.muted; S.music.setAttribute("playsinline", "");
+S.music.play().catch(() => {});
+}
+try { S.ac = new (window.AudioContext || window.webkitAudioContext)(); S.master = S.ac.createGain(); S.master.gain.value = S.muted ? 0 : 0.5; S.master.connect(S.ac.destination); S.ac.resume(); } catch (e) { S.ac = null; }
+};
+ST.setMuted = m => {
+const S = ST.sound; S.muted = m; ST.store.set(ST.cfg.slug + "-muted", m);
+if (S.music) S.music.muted = m; if (S.master) S.master.gain.value = m ? 0 : 0.5; ST.showMute();
+};
+ST.tone = (f1, f2, len, type = "square", vol = 0.05, delay = 0) => {
+const S = ST.sound; if (!S.ac || S.muted || document.hidden) return;
+try {
+const t = S.ac.currentTime + delay, o = S.ac.createOscillator(), gn = S.ac.createGain();
+o.type = type; o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f2), t + len);
+gn.gain.setValueAtTime(vol, t); gn.gain.exponentialRampToValueAtTime(0.001, t + len);
+o.connect(gn); gn.connect(S.master); o.start(t); o.stop(t + len + 0.02);
+} catch (e) {}
+};
+ST.sfx = name => { const f = ST.sound.SFX[name]; if (f) f(ST.tone); };
+for (const type of ["pointerup", "touchend", "click", "keydown"])
+addEventListener(type, e => { if (e.target !== ST.muteBtn) ST.startSound(); }, { capture: true, passive: true });
+if (ST.muteBtn) ST.muteBtn.addEventListener("click", () => { if (!ST.sound.on) { ST.setMuted(false); ST.startSound(); } else ST.setMuted(!ST.sound.muted); });
+document.addEventListener("visibilitychange", () => {
+const m = ST.sound.music; if (!m) return;
+if (document.hidden) m.pause(); else if (ST.scene !== "paused") m.play().catch(() => {});
+});
+ST.keys = new Set();
+ST.drag = { on: false, id: -1, ox: 0, oy: 0, x: 0, y: 0 };
+ST.JOY_R = 28;                                    // joystick radius in CSS px
+ST.pad = { ok: true, connected: false, errors: 0, x: 0, y: 0, held: {} };
+ST.inputStats = { clears: 0, last: "" };
+let downP = null;
+ST.clearInput = why => {
+ST.keys.clear(); downP = null;
+if (ST.drag.on) { try { ST.canvas.releasePointerCapture(ST.drag.id); } catch (e) {} }
+ST.drag.on = false; ST.drag.id = -1;
+ST.pad.held = { a: true, start: true };         // a button already down must be released before it counts again
+ST.inputStats.clears++; ST.inputStats.last = why || "";
+};
+ST.canvas.addEventListener("pointerdown", e => {
+e.preventDefault(); ST.canvas.focus({ preventScroll: true });
+downP = { x: e.clientX, y: e.clientY, id: e.pointerId, t: performance.now(), moved: false, onBtn: !!ST.hitBtn(e.clientX, e.clientY) };
+if (ST.scene === "play" && !downP.onBtn && (e.pointerType !== "mouse" || e.button === 0)) {
+try { ST.canvas.setPointerCapture(e.pointerId); } catch (er) {}
+Object.assign(ST.drag, { on: true, id: e.pointerId, ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY });
+}
+});
+ST.canvas.addEventListener("pointermove", e => {
+if (downP && e.pointerId === downP.id && Math.hypot(e.clientX - downP.x, e.clientY - downP.y) > 12) downP.moved = true;
+if (ST.drag.on && e.pointerId === ST.drag.id) { ST.drag.x = e.clientX; ST.drag.y = e.clientY; }
+});
+function pointerEnd(e) {
+if (e.pointerId === ST.drag.id) { ST.drag.on = false; ST.drag.id = -1; }
+const d = downP; if (!d || d.id !== e.pointerId) return; downP = null;
+if (d.moved || performance.now() - d.t > 600) return;
+ST.tapAt(e.clientX, e.clientY);
+}
+ST.canvas.addEventListener("pointerup", pointerEnd);
+ST.canvas.addEventListener("pointercancel", () => ST.clearInput("pointercancel"));        // the browser/app took the touch
+ST.canvas.addEventListener("lostpointercapture", e => { if (ST.drag.on && e.pointerId === ST.drag.id) ST.clearInput("lostpointercapture"); });
+ST.canvas.addEventListener("contextmenu", e => { e.preventDefault(); ST.clearInput("contextmenu"); });
+addEventListener("blur", () => ST.clearInput("blur"));
+addEventListener("pagehide", () => ST.clearInput("pagehide"));
+document.addEventListener("visibilitychange", () => { if (document.hidden) ST.clearInput("hidden"); });
+ST.readPad = () => {
+const P = ST.pad; P.x = 0; P.y = 0; P.connected = false;
+if (!P.ok) return;
+let list = null;
+try {
+if (typeof navigator.getGamepads !== "function") { P.ok = false; return; }
+list = navigator.getGamepads();
+} catch (e) { if (++P.errors >= 3) P.ok = false; return; }
+try {
+for (const g of list || []) {
+if (!g || g.connected === false) continue;
+P.connected = true;
+const ax = g.axes || [], bt = g.buttons || [], on = i => !!(bt[i] && (bt[i].pressed || bt[i].value > 0.5));
+let x = +ax[0] || 0, y = +ax[1] || 0; if (Math.hypot(x, y) < 0.25) { x = 0; y = 0; }
+if (on(14)) x = -1; if (on(15)) x = 1; if (on(12)) y = -1; if (on(13)) y = 1;
+P.x = x; P.y = y;
+for (const [k, i, code] of [["a", 0, "Enter"], ["start", 9, "KeyP"]]) {
+const down = on(i); if (down && !P.held[k] && !document.hidden) ST.onKey(code); P.held[k] = down;
+}
+break;
+}
+} catch (e) { if (++P.errors >= 3) P.ok = false; }
+};
+ST.dir = () => {                                   // {x, y} in -1..1 from keys, the drag joystick or a gamepad
+const k = ST.keys; let x = 0, y = 0;
+if (k.has("ArrowLeft") || k.has("KeyA")) x -= 1; if (k.has("ArrowRight") || k.has("KeyD")) x += 1;
+if (k.has("ArrowUp") || k.has("KeyW")) y -= 1; if (k.has("ArrowDown") || k.has("KeyS")) y += 1;
+if (!x && !y) { x = ST.pad.x; y = ST.pad.y; }
+if (ST.drag.on) {
+const vx = ST.drag.x - ST.drag.ox, vy = ST.drag.y - ST.drag.oy, l = Math.hypot(vx, vy);
+if (l > 6) { const m = Math.min(1, l / ST.JOY_R); x = vx / l * m; y = vy / l * m; }
+}
+const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; }
+return { x, y };
+};
+ST.drawJoy = () => {                               // the joystick ring, kept above the 70% line
+if (!ST.drag.on) return; const c = ST.ctx, jx = ST.clamp(ST.drag.ox, 30, ST.cw - 30), jy = Math.min(ST.drag.oy, ST.L - 30);
+const d = ST.dir(); c.strokeStyle = "rgba(243,228,204,.45)"; c.lineWidth = 2; c.beginPath(); c.arc(jx, jy, ST.JOY_R, 0, 7); c.stroke();
+c.fillStyle = "rgba(243,228,204,.5)"; c.beginPath(); c.arc(jx + d.x * ST.JOY_R, jy + d.y * ST.JOY_R, 9, 0, 7); c.fill();
+};
+addEventListener("keydown", e => {
+if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) e.preventDefault();
+if (e.repeat) return;
+ST.keys.add(e.code);
+ST.onKey(e.code);
+});
+addEventListener("keyup", e => ST.keys.delete(e.code));
+ST.scene = "title"; ST.sceneT = 0; ST.seq = 0;
+ST.go = s => {
+ST.scene = s; ST.sceneT = 0; ST.seq++; ST.drag.on = false; ST.keys.clear();
+const m = ST.sound.music; if (m) { if (s === "paused") m.pause(); else if (!document.hidden) m.play().catch(() => {}); }
+};
+ST.start = () => { ST.save.data.plays = (ST.save.data.plays || 0) + 1; ST.save.write(); if (ST.sw.seed) ST.seed = ST.sw.seed >>> 0; ST.G.start(); ST.startSeed = ST.seed; ST.go("play"); ST.sfx("start"); };
+ST.end = () => { ST.overInfo = ST.G.over(); ST.go("over"); ST.sfx(ST.overInfo.win ? "win" : "lose"); };
+ST.press = id => {
+if (id === "play" || id === "again") ST.start();
+else if (id === "pause") { ST.go("paused"); ST.sfx("tap"); }
+else if (id === "resume") { ST.go("play"); ST.sfx("tap"); }
+else if (id === "menu") { ST.go("title"); ST.sfx("tap"); }
+else if (ST.G.button) ST.G.button(id);
+};
+ST.tapAt = (x, y) => {
+if (ST.scene === "over" && ST.sceneT < 0.4) return;        // no accidental "again" from the last frantic tap
+const b = ST.hitBtn(x, y);
+if (b) { ST.seq++; ST.press(b.id); return; }
+if (ST.scene === "play" && ST.G.tap && ST.G.tap(x, y)) ST.seq++;
+};
+ST.onKey = code => {
+const ok = code === "Enter" || code === "Space";
+if (ST.sw.tour && code === "F8" && ST.scene === "play") { ST.seq++; ST.end(); return; }   // robot screen tour only
+if (ST.scene === "title" && ok && !ST.sw.card) { ST.seq++; ST.start(); }
+else if (ST.scene === "play" && (code === "KeyP" || code === "Escape")) { ST.seq++; ST.press("pause"); }
+else if (ST.scene === "paused" && (ok || code === "KeyP" || code === "Escape")) { ST.seq++; ST.press("resume"); }
+else if (ST.scene === "over" && ok && ST.sceneT > 0.6) { ST.seq++; ST.press("again"); }
+else if (ST.G.key) { if (ST.G.key(code)) ST.seq++; }
+};
+ST.row = (list, y) => {
+const gap = 8, h = ST.small ? 46 : 52, w = Math.min(ST.small ? 130 : 170, (ST.cw - 16 - gap * (list.length - 1)) / list.length);
+let x = (ST.cw - (w * list.length + gap * (list.length - 1))) / 2;
+for (const b of list) { ST.button(b.id, x, y, w, h, b.label, { on: b.on }); x += w + gap; }
+return y + h;
+};
+ST.lines = (lines, y, color, fs) => {
+for (const l of lines) for (const ln of ST.wrap(l, ST.cw - 24, fs)) { ST.text(ln, ST.cw / 2, y, color, fs, "c"); y += 7 * fs + Math.max(3, fs * 2); }
+return y;
+};
+ST.veil = a => { ST.ctx.fillStyle = `rgba(10,6,16,${a})`; ST.ctx.fillRect(0, 0, ST.cw, ST.ch); };
+ST.drawTitle = () => {
+const T = ST.G.title, big = ST.fs * 1.5;
+let y = ST.small ? 50 : 60;
+ST.text(T.name, ST.cw / 2, y, ST.theme.on, big, "c"); y += 7 * big + (ST.small ? 6 : 12);
+y = ST.lines(T.lines || [], y, ST.theme.text, ST.small ? 1 : ST.fs * 0.75) + (ST.small ? 4 : 10);
+if (ST.sw.card) { ST.text(T.cardLine || "PLAY IT RIGHT HERE IN THE POST", ST.cw / 2, y + 8, ST.theme.text, ST.fs, "c"); return; }
+y = ST.row([{ id: "play", label: "PLAY" }, ...(T.extra || []).map(b => ({ id: b.id, label: b.label(), on: b.on && b.on() }))], y);
+if (T.footer) { const f = T.footer(); if (f) ST.text(f, ST.cw / 2, y + 8, ST.theme.text, ST.small ? 1 : ST.fs * 0.75, "c"); }
+};
+ST.drawPauseBtn = () => ST.button("pause", ST.cw - 96, 2, 44, 44, "II");
+ST.drawPaused = () => {
+ST.veil(0.72);
+const y = ST.small ? 56 : 90;
+ST.text("PAUSED", ST.cw / 2, y, ST.theme.on, ST.fs * 1.5, "c");
+ST.row([{ id: "resume", label: "RESUME" }, { id: "menu", label: "MENU" }], y + 7 * ST.fs * 1.5 + 14);
+};
+ST.drawOver = () => {
+const o = ST.overInfo || { title: "GAME OVER", lines: [] }, big = ST.fs * 1.5;
+ST.veil(o.win ? 0.4 : 0.55);
+let y = ST.small ? 50 : 70;
+ST.text(o.title, ST.cw / 2, y, o.win ? ST.theme.on : "#e0525e", big, "c"); y += 7 * big + 10;
+y = ST.lines(o.lines || [], y, ST.theme.text, ST.small ? 1 : ST.fs * 0.75) + 6;
+ST.row([{ id: "again", label: "AGAIN" }, { id: "menu", label: "MENU" }], y);
+};
+ST.ticks = 0; ST.time = 0;
+ST.hidden = false;
+document.addEventListener("visibilitychange", () => {
+ST.hidden = document.hidden;
+if (ST.hidden && ST.scene === "play") ST.go("paused");   // scrolled away = auto-pause (input.js already cleared held input)
+});
+ST.update = dt => {
+ST.ticks++; ST.time += dt; ST.sceneT += dt;
+if (ST.G.tick) ST.G.tick(dt);                    // always (animations, title backdrop)
+if (ST.scene === "play") ST.G.update(dt);         // only while playing
+};
+ST.draw = () => {
+if (!ST.g || !ST.cw) return;                     // frames can start at 0x0: nothing to draw yet
+const c = ST.ctx, d = ST.DPR();
+c.setTransform(d, 0, 0, d, 0, 0);
+ST.btns = []; ST.uiTexts = []; ST.hud = []; ST.uiBottom = 0; ST.trackUI = true; ST.hudMode = false;
+ST.G.draw(ST.time);                               // the game paints its world into ST.g (and may draw on ST.ctx after present)
+if (!ST.G.presents) ST.present();
+if (ST.G.overlay) ST.G.overlay();                 // optional: draw on the main canvas over the world (e.g. a 3D view)
+if (ST.scene === "title") ST.drawTitle();
+else if (ST.scene === "play") { ST.hudMode = true; if (ST.G.hud) ST.G.hud(); ST.drawPauseBtn(); ST.hudMode = false; ST.drawJoy(); }
+else if (ST.scene === "paused") { if (ST.G.hud) ST.G.hud(); ST.drawPaused(); }
+else if (ST.scene === "over") ST.drawOver();
+if (ST.G.top) { ST.trackUI = false; ST.G.top(); ST.trackUI = true; }   // optional: decoration on top of everything (keep it in the bottom 30%)
+};
+let last = performance.now(), acc = 0;
+ST.now = last; ST.frameNo = 0;
+ST.frame = now => {
+ST.now = now; ST.frameNo++;
+ST.readPad();                                   // never throws (see input.js)
+if (ST.cw !== innerWidth || ST.ch !== innerHeight || ST.canvas.width !== Math.round(innerWidth * ST.DPR())) ST.resize();
+const dtm = now - last; last = now;
+if (!document.hidden) { acc += Math.min(dtm, 100); let n = 0; while (acc >= 1000 / 60 && n++ < 5) { ST.update(1 / 60); acc -= 1000 / 60; } if (n >= 5) acc = 0; } else acc = 0;
+if (ST.cw) ST.draw();
+requestAnimationFrame(ST.frame);
+};
+function uiReport() {
+const dom = [...document.querySelectorAll("[data-control]")].filter(e => getComputedStyle(e).display !== "none")
+.map(e => { const r = e.getBoundingClientRect(); return { id: e.id, x: r.left, y: r.top, w: r.width, h: r.height }; });
+const rects = ST.hud.concat(ST.scene === "play" ? dom : []), G = 4, W = Math.ceil(ST.cw / G), H = Math.ceil(ST.ch / G), cells = new Uint8Array(W * H);
+for (const r of rects) for (let y = Math.max(0, Math.floor(r.y / G)); y < Math.min(H, Math.ceil((r.y + r.h) / G)); y++)
+for (let x = Math.max(0, Math.floor(r.x / G)); x < Math.min(W, Math.ceil((r.x + r.w) / G)); x++) cells[y * W + x] = 1;
+let n = 0; for (const c of cells) n += c;
+const round = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === "number" ? Math.round(v * 10) / 10 : v]));
+return { texts: ST.uiTexts.map(round), hud: ST.hud.map(round), dom: dom.map(round), hudCover: W * H ? +(n / (W * H)).toFixed(3) : 0 };
+}
+window.__gs = () => {
+const S = ST.sound, m = S.music;
+return Object.assign({
+scene: ST.scene, framed: ST.framed, small: ST.small, paused: !!document.hidden, ticks: ST.ticks, time: +ST.time.toFixed(3), seq: ST.seq,
+test: ST.TEST_BUILD, switched: ST.switched, version: ST.cfg.v, addons: ST.cfg.addons.slice(),
+buttons: ST.btns.map(q => ({ id: q.id, label: q.label, x: q.x, y: q.y, w: q.w, h: q.h })),
+layout: { w: ST.cw, h: ST.ch, scale: +ST.sc.toFixed(3), buffer: [ST.canvas.width, ST.canvas.height], world: [ST.BW, ST.BH], uiBottom: ST.uiBottom, safe: ST.L },
+sound: { on: S.on, muted: S.muted, ctx: S.ac ? S.ac.state : null, music: m ? { paused: m.paused, muted: m.muted, time: m.currentTime } : null },
+save: { ok: ST.store.ok, data: JSON.parse(JSON.stringify(ST.save.data)) },
+drag: ST.drag.on,
+input: { keys: [...ST.keys], drag: ST.drag.on, dragId: ST.drag.id, clears: ST.inputStats.clears, last: ST.inputStats.last,
+pad: { ok: ST.pad.ok, connected: ST.pad.connected, errors: ST.pad.errors } },
+ui: uiReport(),
+render3d: self.ST3D && ST3D.auto ? ST3D.auto.report() : null,
+tour: ST.G.tour || [],
+startSeed: ST.startSeed == null ? null : ST.startSeed,   // rng state right after the game's start() (seeded runs: must not depend on robot waits)
+}, ST.G.hook ? ST.G.hook() : {});
+};
+ST.run = G => {
+ST.G = G;
+ST.switched = Object.values(ST.sw).some(Boolean);
+if (ST.sw.seed) ST.seed = ST.sw.seed >>> 0;
+if (ST.sw.card) ST.root.classList.add("card");
+Object.assign(ST.sound.SFX, { start: t => { t(523, 523, 0.08, "triangle", 0.05); t(784, 784, 0.12, "triangle", 0.05, 0.08); },
+tap: t => t(660, 640, 0.03, "triangle", 0.03), win: t => [523, 659, 784, 1046].forEach((f, i) => t(f, f, 0.25, "sine", 0.06, i * 0.12)),
+lose: t => t(392, 98, 0.8, "sawtooth", 0.06) }, G.sfx || {});
+ST.save.load(G.saveDefaults || {});
+addEventListener("resize", ST.resize);
+ST.resize();
+if (G.init) G.init();
+try { ST.draw(); } catch (e) { setTimeout(() => { throw e; }); }
+document.getElementById("loading").classList.add("off");
+window.__ready = true;
+requestAnimationFrame(ST.frame);
+};
+ST.music = (() => {
+const M = { songs: {"title":{"name":"Tape 31","t":56,"len":36,"tr":[{"i":"bell","v":0.26,"n":"o2r2v2t2r2q2n4o2j2k2j2h2f2e4.4"},{"i":"soft","v":0.1,"n":"K8G8D8F8K4"},{"i":"soft","v":0.05,"n":"R8N8K8J8R4"}]},"night":{"name":"Graveyard Shift","t":48,"len":32,"tr":[{"i":"soft","v":0.14,"n":"K8K8L8K8"},{"i":"soft","v":0.06,"n":"R8Q8R8S8"},{"i":"bell","v":0.08,"n":".6v2.8.4w2.2.8"},{"i":"noise","v":0.05,"n":"B4.4.8B2.6.8"}]},"build":{"name":"Blueprints","t":60,"len":32,"tr":[{"i":"bell","v":0.24,"n":"t2w2{2w2v2y2s4t2o2p2m2o2k2j4"},{"i":"soft","v":0.08,"n":"P8L8I8K8"}]},"walk":{"name":"Do Not Rewind","t":40,"len":32,"tr":[{"i":"soft","v":0.16,"n":"B8B8C8B8"},{"i":"soft","v":0.05,"n":"I8H8I8J8"},{"i":"bell","v":0.05,"n":".8.6}2.8.8"}]},"over":{"name":"Tape Ends","t":50,"len":32,"tr":[{"i":"bell","v":0.26,"n":"v2t2r2q2o4n4o8.8"},{"i":"soft","v":0.1,"n":"K8F8G8K8"}]}}, T: {}, cur: null, job: null, start: 0, Q: [], swaps: 0, bus: null, vol: 0.5 };
+if (!M.songs) return M;
+const silentWav = () => {
+const n = 4000, a = new Uint8Array(44 + n).fill(128), v = new DataView(a.buffer), w = (o, t) => { for (let i = 0; i < 4; i++) a[o + i] = t.charCodeAt(i); };
+w(0, "RIFF"); v.setUint32(4, 36 + n, 1); w(8, "WAVE"); w(12, "fmt "); v.setUint32(16, 16, 1); v.setUint16(20, 1, 1); v.setUint16(22, 1, 1);
+v.setUint32(24, 8000, 1); v.setUint32(28, 8000, 1); v.setUint16(32, 1, 1); v.setUint16(34, 8, 1); w(36, "data"); v.setUint32(40, n, 1);
+return URL.createObjectURL(new Blob([a], { type: "audio/wav" }));
+};
+const TAU = Math.PI * 2, F = n => 440 * 2 ** ((n - 69) / 12);
+const ramp = (j, c, R, a, r) => Math.min(1, j / (a * R)) * (j > c * r ? Math.max(0, 1 - (j - c * r) / (c * (1 - r))) : 1);
+M.presets = {
+square: { len: c => c, s: (j, c, f, R, st) => { st.p = ((st.p || 0) + f / R) % 1; return ramp(j, c, R, 0.003, 0.75) * (st.p < 0.5 ? 0.6 : -0.6); } },
+pulse: { len: c => c, s: (j, c, f, R, st) => { st.p = ((st.p || 0) + f * (1 + 0.006 * Math.sin(j / R * 34)) / R) % 1;
+return ramp(j, c, R, 0.003, 0.7) * (0.55 + 0.45 * Math.exp(-j / (0.06 * R))) * (st.p < 0.25 ? 1 : -1); } },
+triangle: { len: c => c, s: (j, c, f, R, st) => { st.p = ((st.p || 0) + f / R) % 1; return ramp(j, c, R, 0.004, 0.8) * Math.round((4 * Math.abs(st.p - 0.5) - 1) * 7.5) / 7.5; } },
+noise: { len: (c, f, R) => Math.min(c, Math.round(R * (f > 600 ? 0.05 : 0.18))), s: (j, c, f, R, st) => {
+st.x = st.x || 0x1234; st.x ^= st.x << 7; st.x ^= st.x >> 9; st.x &= 0xffff; const hi = f > 600;
+st.y = hi ? (st.x / 32768 - 1) - (st.y0 || 0) : (st.y || 0) * 0.82 + (st.x / 32768 - 1) * 0.18; st.y0 = st.x / 32768 - 1;
+return st.y * Math.exp(-j / R * (hi ? 60 : 16)) * (hi ? 0.5 : 1.6); } },
+bell: { len: (c, f, R) => Math.round(Math.min(2.4, 0.9 + 300 / f) * R), s: (j, c, f, R, st) => { const x = j / R, k = TAU * f / R;
+st.a = (st.a || 0) + k * (1 + 0.0035 * Math.sin(x * 1.7));
+return Math.min(1, j / (0.0015 * R)) * (Math.sin(st.a) * Math.exp(-x * 2.6) + 0.32 * Math.sin(st.a * 2) * Math.exp(-x * 6) + 0.18 * Math.sin(st.a * 5.4) * Math.exp(-x * 22)); } },
+soft: { len: c => Math.round(c * 1.15), s: (j, c, f, R, st) => { st.a = (st.a || 0) + TAU * f / R;
+return ramp(j, c * 1.15, R, 0.03, 0.6) * (Math.sin(st.a) + 0.18 * Math.sin(st.a * 2)) * (1 + 0.02 * Math.sin(j / R * 30)); } },
+};
+const seq = v => { const o = []; for (let i = 0; i < v.length;) { const c = v[i++]; let d = 1; if (v[i] >= "0" && v[i] <= "9") d = +v[i++]; o.push([c === "." ? 0 : c.charCodeAt(0) - 30, d]); } return o; };
+function* synth(s, R) {                         // -> one looping mono buffer (note tails wrap around: a seamless loop)
+const st = 30 / s.t, N = Math.round(s.len * st * R), D = new Float32Array(N);
+for (const tr of s.tr) {
+const P = M.presets[tr.i] || M.presets.square, vol = tr.v == null ? 0.2 : tr.v; let i = 0;
+for (const [n, d] of seq(tr.n)) { const c = Math.round(d * st * R);
+if (n) { const f = F(n), L = P.len(c, f, R), S = {}; for (let j = 0; j < L; j++) D[(i + j) % N] += vol * P.s(j, c, f, R, S); }
+i += c; yield; }
+}
+let pk = 0, q = 0; for (let i = 0; i < N; i++) { pk = Math.max(pk, Math.abs(D[i])); q += D[i] * D[i]; }
+const g = Math.min(0.89 / (pk || 1), 0.16 / (Math.sqrt(q / N) || 1)); for (let i = 0; i < N; i++) D[i] *= g;   // the same loudness for every song
+return D;
+}
+M.synth = synth;
+M.want = () => { const k = ST.G && ST.G.song ? ST.G.song(ST.scene) : ST.scene === "title" ? "title" : ST.scene === "over" ? "over" : "play";
+return M.songs[k] ? k : M.cur || Object.keys(M.songs)[0]; };
+const ac = () => ST.sound.ac;
+function pump() {                               // ~4 ms slices every 25 ms: no frame stalls
+const t = performance.now();
+try { while (performance.now() - t < 4) {
+if (!M.job) { const w = M.want(); if (!M.T[w]) M.Q = [w, ...M.Q.filter(k => k !== w)];
+const k = M.Q.shift(); if (!k) return; if (M.T[k]) continue; M.job = { k, g: synth(M.songs[k], 22050) }; M.T[k] = "wait"; }
+const r = M.job.g.next();
+if (r.done) { const b = ac().createBuffer(1, r.value.length, 22050); b.getChannelData(0).set(r.value); M.T[M.job.k] = { b }; M.job = null; }
+} } catch (e) { if (M.job) M.T[M.job.k] = "error"; M.job = null; }
+setTimeout(pump, 25);
+}
+M.tick = () => {                                // crossfade to the wanted song once it is rendered (until then the current one keeps playing)
+if (!M.bus || document.hidden) return;
+const w = M.want(); if (w === M.cur || !(M.T[w] && M.T[w].b)) return;
+const A = ac(), t = A.currentTime, o = M.T[M.cur];
+if (o && o.s) { o.g.gain.setTargetAtTime(0, t, 0.3); o.s.stop(t + 2); o.s = null; }
+const n = M.T[w], s = A.createBufferSource(), g = A.createGain(); s.buffer = n.b; s.loop = true;
+g.gain.setValueAtTime(0, t); g.gain.setTargetAtTime(M.vol, t, 0.3); s.connect(g); g.connect(M.bus); s.start(t); n.s = s; n.g = g; M.start = t;
+M.cur = w; M.swaps++;
+};
+const start0 = ST.startSound;
+ST.startSound = () => {
+const first = !ST.sound.on; start0(); const S = ST.sound;
+if (!first || !S.ac || !S.on) { if (S.ac && S.ac.state !== "running" && !document.hidden && ST.scene !== "paused") S.ac.resume().catch(() => {}); return; }
+if (!S.music) { S.music = new Audio(silentWav()); S.music.loop = true; S.music.setAttribute("playsinline", ""); S.music.play().catch(() => {}); }
+M.bus = S.ac.createGain(); M.bus.gain.value = 0.9; M.bus.connect(S.master); M.Q = Object.keys(M.songs); pump();
+};
+const go0 = ST.go; ST.go = sc => { go0(sc); const A = ac(); if (!A || !M.bus) return; if (sc === "paused") A.suspend().catch(() => {}); else if (!document.hidden) A.resume().catch(() => {}); };
+const upd0 = ST.update; ST.update = dt => { upd0(dt); M.tick(); };
+document.addEventListener("visibilitychange", () => { const A = ac(); if (!A) return; if (document.hidden) A.suspend().catch(() => {}); else if (ST.scene !== "paused") A.resume().catch(() => {}); });
+M.info = () => {
+if (!ac() || !M.bus) return null; const playing = !!(M.cur && M.T[M.cur] && M.T[M.cur].s);
+return { paused: document.hidden || ac().state !== "running" || !playing || (ST.sound.music && ST.sound.music.paused), muted: ST.sound.muted,
+time: playing ? Math.max(0, ac().currentTime - M.start) : 0, song: M.cur, want: M.want(), ready: Object.keys(M.T).filter(k => M.T[k] && M.T[k].b).length,
+of: Object.keys(M.songs).length, swaps: M.swaps };
+};
+const gs0 = window.__gs;
+window.__gs = () => { const o = gs0(); o.sound = Object.assign({}, o.sound, { music: M.info() }); return o; };
+return M;
+})();
+ST.paint = (() => {
+const P = { list: {}, first: [], state: {}, img: {}, at: {}, data: null, off: false, lazyStarted: false,
+drawn: {}, cut: {}, anim: [], shown: { drawn: {}, cut: {}, anim: [] } };
+
+const load = k => {
+if (P.state[k] || P.off || !P.list[k]) return;
+P.state[k] = "loading"; const im = new Image(); im.decoding = "async";
+im.onload = () => { P.img[k] = im; P.state[k] = "ok"; P.at[k] = ST.time; };
+im.onerror = () => { P.state[k] = "fail"; };
+im.src = P.list[k] + "?v=" + ST.cfg.v;
+};
+P.setup = (list, first = []) => { P.list = list; P.first = first; first.forEach(load); };
+P.lazy = () => {                                  // after the first tap: everything else, two downloads at a time
+if (P.lazyStarted) return; P.lazyStarted = true;
+const order = Object.keys(P.list).filter(k => !P.first.includes(k)); let i = 0;
+const next = () => { while (i < order.length && P.state[order[i]]) i++; if (i >= order.length) return; const k = order[i++]; load(k);
+const wait = () => P.state[k] === "loading" ? setTimeout(wait, 60) : next(); wait(); };
+next(); next();
+};
+for (const type of ["pointerup", "touchend", "keydown"]) addEventListener(type, () => P.lazy(), { capture: true, passive: true });
+P.ok = k => P.state[k] === "ok" && !!P.img[k];
+P.alpha = k => P.ok(k) ? Math.min(1, Math.max(0, (ST.time - P.at[k]) / 0.5)) : 0;
+P.loop = (id, n, fps, t, hold = 0) => {
+const per = n / fps + hold, u = ((t % per) + per) % per, f = Math.min(n - 1, Math.floor(u * fps));
+P.anim.push({ id, n, f }); return f;
+};
+P.mark = (slot, ok) => { P.drawn[slot] = ok ? "painted" : "pixel"; };
+P.scene = (slot, k, fx, o = {}) => {
+if (!P.ok(k)) { P.drawn[slot] = "pixel"; return false; }
+if (!(ST.cw > 0 && ST.ch > 0)) return false;     // a 0x0 frame (before the first layout): draw nothing painted this frame
+const c = ST.ctx, im = P.img[k], U = o.units || [160, 100], s = Math.max(ST.cw / im.width, ST.ch / im.height);
+const w = im.width * s, h = im.height * s, x = (ST.cw - w) / 2, y = (ST.ch - h) * (o.ay == null ? 0.5 : o.ay);
+c.save(); c.globalAlpha = o.alpha == null ? P.alpha(k) : o.alpha; c.imageSmoothingEnabled = true; c.imageSmoothingQuality = "high";
+c.drawImage(im, x, y, w, h); c.globalAlpha = 1;
+if (fx) { c.beginPath(); c.rect(0, 0, ST.cw, ST.ch); c.clip(); c.translate(x, y); c.scale(w / U[0], h / U[1]); fx(ST.time); }
+c.restore(); P.drawn[slot] = "painted"; return true;
+};
+P.actor = (id, x, y, h, o = {}) => {
+const sheet = o.sheet || "actors", r = P.data && P.data[sheet] && P.data[sheet][id];
+if (!r || !P.ok(sheet)) { P.cut[id] = "pixel"; return false; }
+const c = ST.ctx, w = h * r[2] / r[3];
+c.save(); c.translate(x, y); if (o.rot) c.rotate(o.rot); c.scale(o.sx || 1, o.sy || 1); if (o.alpha != null) c.globalAlpha = o.alpha;
+c.imageSmoothingEnabled = true; c.drawImage(P.img[sheet], r[0], r[1], r[2], r[3], -w / 2, -h, w, h);
+if (o.tint) { c.globalCompositeOperation = "source-atop"; c.fillStyle = o.tint; c.fillRect(-w / 2, -h, w, h); }
+c.restore(); P.cut[id] = "painted"; return true;
+};
+const draw0 = ST.draw;
+ST.draw = () => { P.drawn = {}; P.cut = {}; P.anim = []; draw0(); P.shown = { drawn: P.drawn, cut: P.cut, anim: P.anim }; };
+const gs0 = window.__gs;
+window.__gs = () => Object.assign(gs0(), {
+art: { state: Object.assign({}, P.state), drawn: Object.assign({}, P.shown.drawn), cut: Object.assign({}, P.shown.cut), keys: Object.keys(P.list),
+first: P.first.slice(), lazyStarted: P.lazyStarted, off: P.off, fading: Object.keys(P.state).some(k => P.ok(k) && P.alpha(k) < 1) },
+anim: P.shown.anim.map(a => Object.assign({}, a)) });
+return P;
+})();
+ST.brag = (() => {
+const B = { shown: false, copy: null };
+B.link = () => { try { return location.href.split("#")[0].split("?")[0].replace(/game(\.test)?\.html$/, "") + "?v=" + ST.cfg.v; } catch (e) { return ""; } };
+B.text = () => { const o = ST.overInfo; return o && o.brag ? `${o.brag} ${ST.cfg.title}: ${B.link()}` : null; };
+B.doCopy = () => {
+const t = B.text(), done = ok => { B.copy = ok ? "ok" : "blocked"; ST.seq++; };
+try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(t).then(() => done(true), () => done(false)); return; } } catch (e) {}
+done(false);
+};
+const press0 = ST.press; ST.press = id => { if (id === "brag") { B.doCopy(); ST.sfx("tap"); } else press0(id); };
+const go0 = ST.go; ST.go = s => { if (s === "over") B.copy = null; go0(s); };
+const dov0 = ST.drawOver;
+ST.drawOver = () => {
+const o = ST.overInfo; B.shown = !!(o && o.brag); if (!B.shown) return dov0();
+const big = ST.fs * 1.5, fs = ST.small ? 1 : ST.fs * 0.75, pad = ST.small ? 6 : 10, x0 = 8, w = ST.cw - 16, c = ST.ctx;
+const lh = 7 * fs + Math.max(3, fs * 2), n = [...(o.lines || []), o.brag].reduce((k, l) => k + ST.wrap(l, ST.cw - 24, fs).length, 0);
+let y = ST.small ? 46 : 90; const top = y - pad - 7 * fs, h = pad + 7 * fs + 6 + 7 * big + 8 + n * lh + 2 + pad - 4;
+ST.veil(o.win ? 0.5 : 0.62);
+c.fillStyle = "rgba(14,8,24,0.88)"; c.fillRect(x0, top, w, h); c.strokeStyle = ST.theme.on; c.lineWidth = 2; c.strokeRect(x0, top, w, h);
+ST.text(ST.cfg.title.toUpperCase(), ST.cw / 2, y - 7 * fs - 2, ST.theme.text, fs, "c");
+y += 4; ST.text(o.title, ST.cw / 2, y, o.win ? ST.theme.on : "#e0525e", big, "c"); y += 7 * big + 8;
+y = ST.lines(o.lines || [], y, ST.theme.text, fs);
+ST.lines([o.brag], y + 2, ST.theme.on, fs);
+ST.row([{ id: "again", label: "AGAIN" }, { id: "menu", label: "MENU" }, { id: "brag", label: B.copy === "ok" ? "COPIED!" : B.copy === "blocked" ? "SNAP IT!" : "COPY" }], top + h + 8);
+};
+const gs0 = window.__gs;
+window.__gs = () => { const o = gs0(); o.brag = { shown: B.shown && ST.scene === "over", text: B.text(), copy: B.copy, link: B.link() }; return o; };
+return B;
+})();
+ST.juke = (() => {
+const J = { i: -1, kind: null, list: [], el: null };
+J.tracks = () => {
+if (ST.music && ST.music.songs) { J.kind = "code"; return Object.keys(ST.music.songs).map(k => ({ k, name: ST.music.songs[k].name || k })); }
+if (ST.G && Array.isArray(ST.G.jukebox)) { J.kind = "file"; return ST.G.jukebox.map((t, i) => ({ k: "f" + i, name: t.name || t.src, src: t.src })); }
+J.kind = null; return [];
+};
+J.cur = () => (J.i >= 0 && J.list[J.i]) || null;
+J.stopFile = () => { if (J.el) { J.el.pause(); J.el = null; } const m = ST.sound.music; if (m && ST.scene !== "paused" && !document.hidden && J.kind === "file") m.play().catch(() => {}); };
+J.next = () => {
+J.list = J.tracks(); if (J.list.length < 2) return;
+ST.startSound(); J.i = (J.i + 1) % J.list.length; const t = J.cur();
+if (J.kind === "file") {
+if (J.el) J.el.pause(); if (ST.sound.music) ST.sound.music.pause();
+J.el = new Audio(t.src + (t.src.includes("?") ? "&" : "?") + "v=" + ST.cfg.v); J.el.loop = true; J.el.volume = 0.35; J.el.muted = ST.sound.muted;
+J.el.setAttribute("playsinline", ""); J.el.play().catch(() => {});
+}
+ST.sfx("tap");
+};
+if (ST.music && ST.music.want) { const w0 = ST.music.want; ST.music.want = () => { const t = J.cur(); return ST.scene === "title" && t && J.kind === "code" && ST.music.songs[t.k] ? t.k : w0(); }; }
+const dt0 = ST.drawTitle;
+ST.drawTitle = () => {
+const T = ST.G && ST.G.title;
+if (T && !T.__juke) { T.__juke = true; J.list = J.tracks();
+if (J.list.length >= 2) { T.extra = [...(T.extra || []), { id: "juke", label: () => "JUKEBOX", on: () => J.i >= 0 }];
+const f0 = T.footer; T.footer = () => { const t = J.cur(); return t ? `NOW PLAYING ${String(t.name).toUpperCase()} (${J.i + 1}/${J.list.length})` : f0 ? f0() : ""; }; } }
+dt0();
+};
+const ss0 = ST.startSound; ST.startSound = () => { ss0(); if (J.el && ST.scene === "title" && ST.sound.music && ST.sound.music !== J.el) ST.sound.music.pause(); };
+const press0 = ST.press; ST.press = id => { if (id === "juke") J.next(); else press0(id); };
+const go0 = ST.go; ST.go = sc => { const was = ST.scene; go0(sc); if (was === "title" && sc !== "title" && J.el) J.stopFile(); };
+const mute0 = ST.setMuted; if (mute0) ST.setMuted = m => { mute0(m); if (J.el) J.el.muted = m; };
+document.addEventListener("visibilitychange", () => { if (J.el) { if (document.hidden) J.el.pause(); else if (ST.scene === "title") J.el.play().catch(() => {}); } });
+const gs0 = window.__gs;
+window.__gs = () => { const o = gs0(), t = J.cur(); o.jukebox = { on: J.i >= 0, i: J.i, n: J.list.length, name: t ? t.name : null, kind: J.kind, playing: J.kind === "file" ? !!(J.el && !J.el.paused) : null }; return o; };
+return J;
+})();
+
+ST.theme = { fill: "#11161d", edge: "#9fb0c0", on: "#d6dee6", text: "#e4eaf0", dark: "#05070a" };
+const W = 1024, H = 576;
+const ART = { title: "assets/title.webp", graveyard: "assets/graveyard.webp", hall: "assets/hall.webp", hallway: "assets/hallway.webp",
+parlor: "assets/parlor.webp", nursery: "assets/nursery.webp", basement: "assets/basement.webp", attic: "assets/attic.webp",
+woman: "assets/woman.webp", boy: "assets/boy.webp", tall: "assets/tall.webp", face: "assets/face.webp",
+doll: "assets/doll.webp", mirror: "assets/mirror.webp", musicbox: "assets/musicbox.webp" };
+ST.paint.setup(ART, ["title"]);
+const ROOMS = [
+{ id: 0, k: "hall", name: "FRONT HALL", cost: 0, spots: [{ x: 520, y: 400, h: 230 }, { x: 745, y: 420, h: 260 }, { x: 400, y: 470, h: 330 }] },
+{ id: 1, k: "hallway", name: "HALLWAY", cost: 40, spots: [{ x: 650, y: 350, h: 150 }, { x: 470, y: 400, h: 240 }, { x: 580, y: 520, h: 380 }],
+note: "WHO KEEPS OPENING THE DOORS?" },
+{ id: 2, k: "parlor", name: "PARLOR", cost: 70, spots: [{ x: 545, y: 330, h: 200 }, { x: 880, y: 450, h: 330 }, { x: 470, y: 480, h: 330 }],
+note: "COVER THE MIRROR" },
+{ id: 3, k: "nursery", name: "NURSERY", cost: 100, spots: [{ x: 690, y: 345, h: 200 }, { x: 430, y: 500, h: 330 }, { x: 230, y: 470, h: 330 }],
+note: "THE CHAIR ROCKS BY ITSELF" },
+{ id: 4, k: "basement", name: "BASEMENT", cost: 130, spots: [{ x: 690, y: 335, h: 170 }, { x: 600, y: 500, h: 340 }, { x: 330, y: 470, h: 300 }],
+note: "DO NOT GO DOWN AFTER DARK" },
+{ id: 5, k: "attic", name: "ATTIC", cost: 160, spots: [{ x: 650, y: 330, h: 170 }, { x: 770, y: 360, h: 240 }, { x: 540, y: 480, h: 330 }],
+note: "SOMETHING LIVES UP HERE" },
+];
+const HAUNTS = [
+{ id: 0, k: "woman", name: "PALE BRIDE", type: "spirit", w: 8, pref: [0, 5, 1], trig: ["enter", "lookaway", "still"] },
+{ id: 1, k: "boy", name: "THE BOY", type: "spirit", w: 9, pref: [3, 1], trig: ["still", "lookaway", "enter"] },
+{ id: 2, k: "tall", name: "TALL MAN", type: "spirit", w: 12, pref: [1, 4, 5], trig: ["lookaway", "enter", "door"] },
+{ id: 3, k: "face", name: "THE SCREAMER", type: "spirit", w: 15, pref: [4, 5, 0], trig: ["door", "still", "lookaway"] },
+{ id: 4, k: "doll", name: "PORCELAIN DOLL", type: "relic", w: 6, pref: [3, 2], trig: ["lookaway", "enter"] },
+{ id: 5, k: "mirror", name: "THE MIRROR", type: "relic", w: 8, pref: [2, 1, 0], trig: ["enter", "still"] },
+{ id: 6, k: "musicbox", name: "MUSIC BOX", type: "relic", w: 6, pref: [3, 2, 5], trig: ["enter", "still"] },
+{ id: 7, k: "whispers", name: "WHISPERS", type: "sound", w: 4, pref: [4, 1], trig: ["still", "enter", "door"] },
+{ id: 8, k: "crying", name: "CRYING", type: "sound", w: 5, pref: [3, 5], trig: ["enter", "still"] },
+{ id: 9, k: "footsteps", name: "FOOTSTEPS", type: "sound", w: 5, pref: [5, 1, 0], trig: ["enter", "door", "still"] },
+];
+const RELICS = [4, 5, 6], SOUNDS = [7, 8, 9];
+const NAMES = ["HOLLOWAY", "ASHGROVE", "MERCER", "BLACKWOOD", "VANE", "CRANE", "LOCKE", "HARROW", "WINTERS", "GREY", "MARLOWE", "THORNE"];
+const MAX_BOX = 12;
+const GRAVES = [{ x: 192, y: 330, t: "old" }, { x: 300, y: 300, t: "old" }, { x: 386, y: 330, t: "old" }, { x: 490, y: 320, t: "old" },
+{ x: 604, y: 330, t: "old" }, { x: 690, y: 320, t: "old" }, { x: 782, y: 360, t: "old" }, { x: 845, y: 400, t: "old" },
+{ x: 330, y: 430, t: "fresh" }, { x: 540, y: 410, t: "fresh" }, { x: 455, y: 480, t: "fresh" }];
+let ph = null, cam = { x: W / 2, y: H / 2 }, VS = { vw: 400, vh: 400, s: 1, zoom: 0.8 };
+let N = null, B = null, WK = null, lastHouse = null, mode = "own", visit = null, nextStart = null, msg = { s: "", t: 0 };
+const FX = { glitch: 0, gi: 0, flick: 0, black: 0, face: 0, faceT: 0, shake: 0, stat: 0, statT: 0, whip: 0 };
+const D = () => ST.save.data;
+const rnd = (a, b) => a + ST.rand() * (b - a), pick = a => a[Math.floor(ST.rand() * a.length)];
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(ST.rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const say = (s, t = 2.2) => { msg = { s, t }; };
+const myHouse = () => ({ rooms: D().rooms.slice(), haunts: D().haunts.slice(), name: Math.max(0, D().name) });
+const houseName = h => "THE " + NAMES[h.name % NAMES.length] + " HOUSE";
+function rating(h) {
+let n = h.haunts.reduce((a, i) => a + HAUNTS[i].w, 0) + (h.rooms.length - 1) * 6 + 2;
+n = Math.min(100, Math.round(n));
+const rank = n < 20 ? "DRAFTY" : n < 40 ? "UNEASY" : n < 60 ? "HAUNTED" : n < 80 ? "CURSED" : "DO NOT ENTER";
+return { n, rank };
+}
+const HL = "ABCDEFGHIJ";
+function encode(h) { return h.name.toString(36).toUpperCase() + h.rooms.slice(1).join("") + "-" + (h.haunts.map(i => HL[i]).join("") || "0"); }
+function decode(s) {
+try {
+const m = /^([0-9A-B])([1-5]{0,5})-([A-J]{1,12}|0)$/.exec(String(s || "").toUpperCase().trim()); if (!m) return null;
+const rooms = [0, ...m[2].split("").filter(Boolean).map(Number)]; if (new Set(rooms).size !== rooms.length) return null;
+const haunts = m[3] === "0" ? [] : m[3].split("").map(c => HL.indexOf(c));
+return { rooms, haunts, name: parseInt(m[1], 36) };
+} catch (e) { return null; }
+}
+function codeFromUrl() { try { const m = /[#&?]h=([0-9A-Za-z-]+)/.exec(location.hash || ""); return m ? decode(m[1]) : null; } catch (e) { return null; } }
+const AU = { nb: null, st: null, sg: null };
+const ac = () => { const s = ST.sound; return s.ac && s.master && !s.muted && !document.hidden && s.ac.state === "running" ? s.ac : null; };
+function noiseBuf(A) {
+if (!AU.nb) { const n = A.sampleRate * 2, b = A.createBuffer(1, n, A.sampleRate), d = b.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; AU.nb = b; }
+return AU.nb;
+}
+function out(A, node, pan) {
+if (pan && A.createStereoPanner) { const p = A.createStereoPanner(); p.pan.value = ST.clamp(pan, -1, 1); node.connect(p); p.connect(ST.sound.master); }
+else node.connect(ST.sound.master);
+}
+function noise(len, vol, f, q = 1, type = "lowpass", delay = 0, pan = 0) {
+const A = ac(); if (!A) return;
+try {
+const t = A.currentTime + delay, s = A.createBufferSource(), fl = A.createBiquadFilter(), g = A.createGain();
+s.buffer = noiseBuf(A); fl.type = type; fl.frequency.value = f; fl.Q.value = q;
+g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.02, len / 4)); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+s.connect(fl); fl.connect(g); out(A, g, pan); s.start(t, Math.random()); s.stop(t + len + 0.05);
+} catch (e) {}
+}
+function osc(f1, f2, len, type, vol, delay = 0, pan = 0, att = 0.01) {
+const A = ac(); if (!A) return;
+try {
+const t = A.currentTime + delay, o = A.createOscillator(), g = A.createGain();
+o.type = type; o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f2), t + len);
+g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + att); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+o.connect(g); out(A, g, pan); o.start(t); o.stop(t + len + 0.05);
+} catch (e) {}
+}
+function staticLoop(level) {                     // the camcorder hiss: a looping noise source whose volume follows FX.stat
+const A = ST.sound.ac; if (!A || !ST.sound.master) return;
+try {
+if (!AU.st) { const s = A.createBufferSource(), f = A.createBiquadFilter(), g = A.createGain(); s.buffer = noiseBuf(A); s.loop = true;
+f.type = "highpass"; f.frequency.value = 1800; g.gain.value = 0; s.connect(f); f.connect(g); g.connect(ST.sound.master); s.start(); AU.st = s; AU.sg = g; }
+AU.sg.gain.setTargetAtTime(Math.min(0.5, level), A.currentTime, 0.05);
+} catch (e) {}
+}
+const duck = on => { try { const M = ST.music; if (M && M.bus && ST.sound.ac) M.bus.gain.setTargetAtTime(on ? 0.08 : 0.9, ST.sound.ac.currentTime, on ? 0.05 : 0.6); } catch (e) {} };
+const buzz = ms => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} };
+const SFX = {
+coin: () => { osc(2600, 2500, 0.09, "sine", 0.05); osc(3300, 3250, 0.16, "sine", 0.03, 0.04); },
+dig: () => { noise(0.2, 0.35, 700, 0.8, "bandpass"); osc(140, 60, 0.12, "sine", 0.12); },
+clink: () => { osc(1900, 1850, 0.25, "triangle", 0.05); osc(2840, 2800, 0.2, "sine", 0.03, 0.02); },
+sting: () => { noise(0.7, 0.55, 2500, 0.4, "highpass"); osc(233, 80, 0.8, "sawtooth", 0.11); osc(247, 85, 0.8, "sawtooth", 0.11); osc(52, 34, 1.1, "sine", 0.35); buzz(80); },
+soft: () => { osc(880, 870, 1.6, "sine", 0.035, 0, 0, 0.3); osc(932, 925, 1.6, "sine", 0.03, 0, 0, 0.3); osc(110, 108, 1.6, "sine", 0.08, 0, 0, 0.3); },
+deep: () => { osc(60, 30, 1.6, "sawtooth", 0.08); osc(45, 28, 1.8, "sine", 0.35); noise(1.2, 0.2, 300, 0.7); buzz(120); },
+growl: () => { osc(72, 48, 0.9, "sawtooth", 0.05); noise(0.9, 0.2, 220, 1); },
+thud: (d = 0, pan = 0, v = 0.25) => { osc(95, 45, 0.14, "sine", v, d, pan); noise(0.09, v * 0.4, 420, 1, "lowpass", d, pan); },
+slam: () => { noise(0.45, 0.8, 700, 0.6); osc(85, 38, 0.5, "sine", 0.45); buzz(60); },
+creak: () => { osc(420, 250, 0.9, "triangle", 0.025, 0, -0.3, 0.2); osc(436, 262, 0.9, "triangle", 0.02, 0.05, 0.3, 0.2); },
+beep: () => osc(1000, 1000, 0.07, "square", 0.025),
+whisper: (d = 0, pan = 0, v = 0.12) => { for (let i = 0; i < 5; i++) noise(0.07 + Math.random() * 0.08, v * (0.5 + Math.random() * 0.5), 2200 + Math.random() * 2400, 3, "bandpass", d + i * 0.11, pan); },
+sob: (d = 0, pan = 0, v = 0.03) => { const f = 470 + Math.random() * 70; osc(f, f * 0.72, 0.42, "triangle", v, d, pan, 0.05); noise(0.3, v * 2, 1300, 1.5, "bandpass", d + 0.05, pan); },
+tine: (f, d = 0, v = 0.05) => { osc(f, f * 0.998, 1.1, "sine", v, d, 0.15, 0.003); osc(f * 2.01, f * 2, 0.4, "sine", v * 0.3, d, 0.15, 0.003); },
+};
+const LULL = [76, 79, 84, 83, 79, 81, 79, 76, 74, 76, 72, 71];
+function playLullaby(dur) { let t = 0, step = 0.24; for (let i = 0; i < LULL.length && t < dur; i++) { SFX.tine(440 * 2 ** ((LULL[i] - 69) / 12) * (1 - i * 0.004), t); t += step; step *= 1.06; } }
+function view(zoom) {                            // the view rectangle in world units for this frame size
+let vh = H * zoom, vw = vh * ST.cw / ST.ch;
+if (vw > W * 0.62) { vw = W * 0.62; vh = vw * ST.ch / ST.cw; }
+VS.vw = vw; VS.vh = vh; VS.s = ST.cw / vw; VS.zoom = zoom;
+cam.x = ST.clamp(cam.x, vw / 2, W - vw / 2); cam.y = ST.clamp(cam.y, vh / 2, H - vh / 2);
+}
+const sx = ux => (ux - cam.x) * VS.s + ST.cw / 2 + (FX.shk ? FX.shk.x : 0);
+const sy = uy => (uy - cam.y) * VS.s + ST.ch / 2 + (FX.shk ? FX.shk.y : 0);
+const onView = (ux, frac = 0.45) => Math.abs(ux - cam.x) < VS.vw * frac;
+function drawPano(key, slot) {
+const c = ST.ctx, P = ST.paint;
+if (P.ok(key)) {
+const im = P.img[key], k = im.width / W, x0 = cam.x - VS.vw / 2 - (FX.shk ? FX.shk.x / VS.s : 0), y0 = cam.y - VS.vh / 2 - (FX.shk ? FX.shk.y / VS.s : 0);
+c.imageSmoothingEnabled = true;
+c.drawImage(im, Math.max(0, x0 * k), Math.max(0, y0 * k), VS.vw * k, VS.vh * k, 0, 0, ST.cw, ST.ch);
+if (FX.whip > 0) { c.globalAlpha = 0.45; c.drawImage(im, Math.max(0, x0 * k - 40), Math.max(0, y0 * k), VS.vw * k, VS.vh * k, 0, 0, ST.cw, ST.ch); c.globalAlpha = 1; }
+P.mark(slot, true); return true;
+}
+const g = c.createLinearGradient(0, 0, 0, ST.ch); g.addColorStop(0, "#0b0f14"); g.addColorStop(1, "#1b232b");
+c.fillStyle = g; c.fillRect(0, 0, ST.cw, ST.ch);
+c.fillStyle = "#2a323b";
+if (key === "graveyard") for (const gr of GRAVES) if (gr.t === "old") c.fillRect(sx(gr.x) - 14 * VS.s, sy(gr.y) - 60 * VS.s, 28 * VS.s, 60 * VS.s);
+if (key !== "graveyard") { c.fillRect(sx(512) - 50 * VS.s, sy(400) - 200 * VS.s, 100 * VS.s, 200 * VS.s); c.fillStyle = "#161c22"; c.fillRect(0, sy(420), ST.cw, ST.ch); }
+P.mark(slot, false); return false;
+}
+function drawCut(k, ux, uy, hu, a = 1, o = {}) { // a cutout (spirit / relic), feet at (ux, uy), hu units tall
+const c = ST.ctx, P = ST.paint, x = o.sx != null ? o.sx : sx(ux), y = o.sy != null ? o.sy : sy(uy), h = o.hpx || hu * VS.s;
+c.save(); c.globalAlpha = ST.clamp(a, 0, 1);
+if (P.ok(k)) { const im = P.img[k], w = h * im.width / im.height;
+if (o.flip) { c.translate(x, 0); c.scale(-1, 1); c.drawImage(im, -w / 2, y - h, w, h); } else c.drawImage(im, x - w / 2, y - h, w, h);
+P.cut[k] = "painted"; }
+else { c.fillStyle = "#c8d2dc"; c.beginPath(); c.ellipse(x, y - h * 0.55, h * 0.16, h * 0.45, 0, 0, 7); c.fill(); P.cut[k] = "pixel"; }
+c.restore();
+}
+const FF = { tiles: null, scan: null, key: "", vig: null, light: null };
+function ffPrep() {
+if (!FF.tiles) { FF.tiles = [0, 1, 2, 3].map(() => { const t = ST.mk(128, 128), g = t.getContext("2d"), d = g.createImageData(128, 128);
+for (let i = 0; i < d.data.length; i += 4) { const v = Math.random() * 255 | 0; d.data[i] = v; d.data[i + 1] = v; d.data[i + 2] = v + 8; d.data[i + 3] = 34; }
+g.putImageData(d, 0, 0); return t; });
+const s = ST.mk(2, 4), g = s.getContext("2d"); g.fillStyle = "rgba(0,0,0,0.35)"; g.fillRect(0, 0, 2, 1); FF.scan = ST.ctx.createPattern(s, "repeat"); }
+const k = ST.cw + "x" + ST.ch; if (FF.key === k) return; FF.key = k;
+const c = ST.ctx, m = Math.max(ST.cw, ST.ch);
+FF.vig = c.createRadialGradient(ST.cw / 2, ST.ch / 2, m * 0.3, ST.cw / 2, ST.ch / 2, m * 0.78);
+FF.vig.addColorStop(0, "rgba(0,0,0,0)"); FF.vig.addColorStop(1, "rgba(0,0,0,0.78)");
+FF.light = c.createRadialGradient(ST.cw / 2, ST.ch * 0.5, m * 0.12, ST.cw / 2, ST.ch * 0.5, m * 0.62);
+FF.light.addColorStop(0, "rgba(0,0,0,0)"); FF.light.addColorStop(1, "rgba(0,0,0,0.52)");
+}
+function flickerDark() {                          // 0 = full flashlight, 1 = dark. FX.flick makes it stutter.
+if (FX.flick <= 0) return 0;
+const t = ST.time * 23; return (Math.sin(t) + Math.sin(t * 2.7) > 0.6) ? 0.85 : 0.15;
+}
+function camFilter(o = {}) {
+ffPrep(); const c = ST.ctx, w = ST.cw, h = ST.ch, d = ST.DPR();
+if (o.light) { c.fillStyle = FF.light; c.fillRect(0, 0, w, h); }
+const dk = flickerDark(); if (dk) { c.fillStyle = `rgba(0,0,0,${dk})`; c.fillRect(0, 0, w, h); }
+if (FX.black > 0) { c.fillStyle = "#000"; c.fillRect(0, 0, w, h); }
+const gl = Math.max(FX.glitch > 0 ? 1 : 0, FX.stat);
+if (gl > 0.05) {
+const n = Math.round(2 + gl * 8);
+for (let i = 0; i < n; i++) { const y = Math.random() * h, hh = 3 + Math.random() * 22 * gl, dx = (Math.random() - 0.5) * 60 * gl;
+try { c.drawImage(ST.canvas, 0, y * d, w * d, hh * d, dx, y, w, hh); } catch (e) {} }
+c.globalAlpha = Math.min(0.85, gl * 0.6);
+for (let i = 0; i < n; i++) { const y = Math.random() * h; c.drawImage(FF.tiles[i % 4], 0, 0, 128, 8, 0, y, w, 4 + Math.random() * 14 * gl); }
+c.globalAlpha = 1;
+}
+const t = FF.tiles[ST.frameNo % 4], ox = -Math.random() * 128, oy = -Math.random() * 128;
+c.globalAlpha = 0.9 + FX.stat * 2;
+for (let y = oy; y < h; y += 128) for (let x = ox; x < w; x += 128) c.drawImage(t, x, y);
+c.globalAlpha = 1; c.fillStyle = FF.scan; c.fillRect(0, 0, w, h);
+c.fillStyle = FF.vig; c.fillRect(0, 0, w, h);
+c.fillStyle = "rgba(40,70,110,0.08)"; c.fillRect(0, 0, w, h);          // the cold cast
+}
+function drawFace() {                             // THE SCREAMER: full-frame jump scare
+if (FX.face <= 0) return; const c = ST.ctx, u = 1 - FX.face / FX.faceT, s = 1 + u * 0.35;
+c.fillStyle = "#000"; c.fillRect(0, 0, ST.cw, ST.ch);
+const h = Math.max(ST.cw, ST.ch) * 1.05 * s; drawCut("face", 0, 0, 0, 0.95, { sx: ST.cw / 2 + (Math.random() - 0.5) * 14, sy: ST.ch / 2 + h * 0.52, hpx: h });
+}
+function jump(k = 0.55) { FX.face = k; FX.faceT = k; FX.glitch = Math.max(FX.glitch, k + 0.2); FX.shake = 0.5; SFX.sting(); }
+function fxUpdate(dt) {
+for (const k of ["glitch", "flick", "black", "face", "shake", "whip"]) FX[k] = Math.max(0, FX[k] - dt);
+FX.stat += ((FX.statT || 0) - FX.stat) * Math.min(1, dt * 8);
+FX.shk = FX.shake > 0 ? { x: (Math.random() - 0.5) * 16 * FX.shake, y: (Math.random() - 0.5) * 12 * FX.shake } : null;
+staticLoop(FX.stat * 0.5 + (FX.glitch > 0 ? 0.12 : 0));
+if (msg.t > 0) msg.t -= dt;
+}
+const pad2 = n => String(n).padStart(2, "0");
+function osd(label) {
+const c = ST.ctx, fs = ST.small ? 1 : ST.fs * 0.75, x = 52, y = 8;
+if (Math.floor(ST.time * 1.4) % 2 === 0) { c.fillStyle = "#e0242a"; c.beginPath(); c.arc(x + 4 * fs, y + 3.5 * fs, 3.2 * fs, 0, 7); c.fill(); }
+ST.text(label || "REC", x + 10 * fs, y, "#f0f4f8", fs);
+const s = 23 * 3600 + 41 * 60 + 7 + Math.floor(ST.time), hh = Math.floor(s / 3600) % 24;
+if (ST.small && ST.cw < 300) return 50;          // the narrow card keeps the HUD light (under 30% of the frame)
+ST.text("OCT 31 1997  " + pad2(hh) + ":" + pad2(Math.floor(s / 60) % 60) + ":" + pad2(s % 60), x, y + 9 * fs + 2, "#dfe6ee", fs);
+return Math.max(50, y + 18 * fs + 6);
+}
+function battery(x, y, v) {                       // a small camcorder battery icon (v 0..100)
+const c = ST.ctx, w = ST.small ? 26 : 34, h = ST.small ? 11 : 14;
+c.strokeStyle = v < 20 && Math.floor(ST.time * 3) % 2 ? "#e0242a" : "#e4eaf0"; c.lineWidth = 2; c.strokeRect(x, y, w, h);
+c.fillStyle = c.strokeStyle; c.fillRect(x + w, y + h / 3, 3, h / 3);
+const n = Math.ceil(v / 25); for (let i = 0; i < n; i++) c.fillRect(x + 3 + i * (w - 4) / 4, y + 3, (w - 4) / 4 - 2, h - 6);
+ST.hudRect(x, y, w + 3, h);
+}
+function bar(x, y, w, v, label, col) {
+const c = ST.ctx, fs = ST.small ? 1 : ST.fs * 0.75, h = ST.small ? 5 : 7;
+const tw = ST.text(label, x, y, "#dfe6ee", fs); const bx = x + tw + 6;
+c.fillStyle = "rgba(0,0,0,0.55)"; c.fillRect(bx, y, w, h + 2); c.fillStyle = col; c.fillRect(bx + 1, y + 1, (w - 2) * ST.clamp(v / 100, 0, 1), h);
+ST.hudRect(bx, y, w, h + 2);
+}
+function toast() { if (msg.t > 0 && msg.s) { const fs = ST.small ? 1 : ST.fs * 0.75, y = Math.round(ST.ch * 0.30);
+for (const [i, l] of ST.wrap(msg.s, ST.cw - 30, fs).entries()) ST.text(l, ST.cw / 2, y + i * (9 * fs + 2), "#f0f4f8", fs, "c"); } }
+function brackets(x, y, r, col) {                 // the camcorder focus box
+const c = ST.ctx, k = r * 0.35; c.strokeStyle = col; c.lineWidth = 2; c.beginPath();
+for (const [ax, ay] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { c.moveTo(x + ax * r, y + ay * (r - k)); c.lineTo(x + ax * r, y + ay * r); c.lineTo(x + ax * (r - k), y + ay * r); }
+c.stroke();
+}
+const ZOOM_YARD = 0.8, ZOOM_ROOM = 0.75;
+function beginNight() {
+const d = D(); d.night = (d.night || 0) + 1; ST.save.write();
+const n = d.night, olds = shuffle(GRAVES.filter(g => g.t === "old").map(g => Object.assign({}, g)));
+const hots = [];
+olds.forEach((g, i) => {
+if (i < 2) hots.push(Object.assign(g, { kind: "relic", relic: pick(RELICS), depth: 0, grab: 4 + Math.floor(rnd(0, 4)) }));
+else if (i < 4) hots.push(Object.assign(g, { kind: "voice", rec: SOUNDS[(i + n) % 3] }));
+else hots.push(Object.assign(g, { kind: "coins", coins: 1 + Math.floor(rnd(0, 3)) }));
+});
+for (const g of GRAVES.filter(g => g.t === "fresh")) hots.push(Object.assign({}, g, { kind: "dig", prog: 0 }));
+N = { n, bat: 100, life: 80 / (1 + 0.12 * (n - 1)), unrest: Math.min(32, (n - 1) * 8), earned: 0, got: [], hots, spirit: null,
+nextSpirit: rnd(4, 6), tune: null, film: null, watchT: 7, scareT: rnd(7, 10), flickT: 2, died: false, dropped: 0, hole: null };
+
+cam = { x: W / 2, y: H * 0.55 }; ph = "night"; say(ST.cw < 300 ? "FIND THE GRAVES." : "FIND THE GRAVES. WATCH THE BATTERY.", 3);
+}
+const actLabel = h => h.kind === "coins" ? "TAKE COIN" : h.kind === "dig" ? "DIG" : h.kind === "relic" ? (h.depth >= 3 ? "DIG DEEPER" : "DIG") : "RECORD";
+function target() {                               // what the focus box is on: a spirit first, then the nearest grave
+if (!N || N.tune) return null;
+const sp = N.spirit; if (sp && sp.a > 0.3 && Math.abs(sp.x - cam.x) < VS.vw * 0.2) return { spirit: sp };
+let best = null, bd = VS.vw * 0.2;
+for (const h of N.hots) if (!h.done) { const dd = Math.abs(h.x - cam.x); if (dd < bd) { bd = dd; best = h; } }
+return best ? { hot: best } : null;
+}
+function addUnrest(v) { N.unrest = ST.clamp(N.unrest + v, 0, 100); }
+function collect(id, why) {
+const d = D(); d.haunts.push(id); if (d.haunts.length > MAX_BOX) d.haunts.shift(); ST.save.write();
+N.got.push(id); say(why + ": " + HAUNTS[id].name + " INTO THE HAUNT BOX", 2.6);
+}
+function act(id) {
+if (!N || ph !== "night") return;
+const t = target();
+if (id === "film" && t && t.spirit && !N.film) { N.film = { t: 0 }; SFX.beep(); return; }
+if (!t || !t.hot) return; const h = t.hot;
+if (id === "take" && h.kind === "relic" && h.depth >= 3) {
+const v = 10 + (h.depth - 3) * 15; D().cash += v; N.earned += v; h.done = true; collect(h.relic, "+$" + v + " AND A CURSED RELIC"); addUnrest(6); SFX.clink(); return;
+}
+if (id !== "act") return;
+if (h.kind === "coins") {
+const v = 4 + Math.floor(rnd(0, 6)) + N.n; D().cash += v; N.earned += v; N.coinCash = (N.coinCash || 0) + v;
+h.coins--; if (h.coins <= 0) h.done = true; addUnrest(7); SFX.coin(); say("+$" + v + " FROM THE GRAVE. THE DEAD NOTICED.", 1.6); ST.save.write();
+} else if (h.kind === "dig") {
+h.prog++; addUnrest(1.5); N.bat -= 0.6; SFX.dig(); FX.shake = 0.12;
+if (h.prog >= 5) { const v = 28 + 4 * N.n; D().cash += v; N.earned += v; h.done = true; ST.save.write();
+if (ST.rand() < 0.22 + N.unrest / 300) { N.hole = { t: 0, x: h.x, y: h.y }; addUnrest(8); }
+else say("GRAVE DUG. +$" + v, 1.8); }
+} else if (h.kind === "relic") {
+h.depth++; addUnrest(2); N.bat -= 0.6; SFX.dig(); FX.shake = 0.12;
+if (h.depth >= h.grab) { h.done = true; addUnrest(16); N.bat -= 8; jump(0.5); FX.black = 0.15; say("SOMETHING GRABBED BACK. THE RELIC IS GONE.", 2.6); }
+else if (h.depth === 3) { SFX.clink(); say("CLINK. SOMETHING IS DOWN THERE. TAKE IT, OR DIG FOR MORE?", 2.6); }
+else if (h.depth > 3) { say("IT'S WORTH $" + (10 + (h.depth - 3) * 15) + " NOW...", 1.6); if (h.depth === h.grab - 1) { FX.flick = 1.2; SFX.growl(); } }
+} else if (h.kind === "voice") {
+let T = rnd(8, 92); if (Math.abs(T - 50) < 15) T = T < 50 ? T - 15 : T + 15;
+N.tune = { f: 50, T: ST.clamp(T, 6, 94), hold: 0, hot: h, t: 0 }; SFX.beep();
+}
+}
+function endNight(left) {
+if (ph !== "night") return;
+N.tune = null; N.film = null; FX.statT = 0;
+if (!left) { N.died = true; N.dropped = Math.floor((N.coinCash || 0) * 0.3); D().cash = Math.max(0, D().cash - N.dropped); }
+ST.save.write(); ph = "tally"; FX.black = 0.3; SFX.beep();
+}
+function nightUpdate(dt) {
+const d = ST.dir(); let k = 1;
+if (N.tune) {                                   // VOICE RECORDER: drag or arrows tune the dial
+const T = N.tune; T.t += dt; T.f = ST.clamp(T.f + d.x * 42 * dt, 0, 100);
+const sig = ST.clamp(1 - Math.abs(T.f - T.T) / 22, 0, 1); T.sig = sig; FX.statT = 0.7 * (1 - sig) + 0.05;
+if (Math.abs(T.f - T.T) < 5) T.hold += dt; else T.hold = Math.max(0, T.hold - dt * 0.5);
+if (sig > 0.35 && ST.frameNo % 22 === 0) (T.hot.rec === 8 ? SFX.sob : SFX.whisper)(0, (T.T - 50) / 60, 0.03 + sig * 0.12);
+if (T.hot.rec === 9 && sig > 0.35 && ST.frameNo % 30 === 0) SFX.thud(0, 0, 0.05 + sig * 0.2);
+if (T.hold >= 1.5) { T.hot.done = true; N.tune = null; FX.statT = 0; addUnrest(6); collect(T.hot.rec, "RECORDING SAVED"); SFX.soft(); }
+k = 2;
+} else {
+cam.x += d.x * 300 * dt; cam.y += d.y * 160 * dt;
+}
+view(ZOOM_YARD);
+N.bat -= dt * (100 / N.life) * k * (N.unrest >= 100 ? 3 : 1);
+if (N.bat <= 0) { N.bat = 0; endNight(false); return; }
+if (N.hole) { N.hole.t += dt; if (N.hole.t > 0.05 && !N.hole.s) { N.hole.s = 1; SFX.sting(); FX.glitch = 0.5; } if (N.hole.t > 1.3) { N.hole = null; say("THE HOLE WASN'T EMPTY. PAID ANYWAY.", 2); } }
+const sp = N.spirit;
+if (!sp) { N.nextSpirit -= dt; if (N.nextSpirit <= 0) {
+const pool = [0, 0, 0, 1, 1, 2]; if (N.unrest >= 60) pool.push(3, 3); const id = pick(pool);
+let x = rnd(200, 830); if (Math.abs(x - cam.x) < VS.vw * 0.3) x = x < cam.x ? Math.max(180, cam.x - VS.vw * 0.55) : Math.min(850, cam.x + VS.vw * 0.55);
+N.spirit = { id, x, y: rnd(360, 430), life: id >= 2 ? 3.8 : 5, t: 0, a: 0 }; SFX.whisper(0, (x - cam.x) / 400, 0.08); } }
+else {
+sp.t += dt; sp.a = Math.min(1, sp.t / 0.5, (sp.life - sp.t) / 0.5);
+if (N.film) { N.film.t += dt; if (Math.abs(sp.x - cam.x) > VS.vw * 0.24) { N.film = null; say("LOST FOCUS.", 1.2); }
+else if (N.film.t >= 1.0) { N.film = null; N.spirit = null; N.nextSpirit = rnd(8, 13); addUnrest(10); collect(sp.id, "SPIRIT ON TAPE"); SFX.soft(); FX.glitch = 0.25; } }
+if (N.spirit && sp.t >= sp.life) { N.spirit = null; N.film = null; N.nextSpirit = rnd(8, 13); if (sp.t > 0) say("IT'S GONE.", 1); }
+}
+const u = N.unrest;
+if (u > 35) { N.flickT -= dt; if (N.flickT <= 0) { FX.flick = rnd(0.2, 0.7); N.flickT = rnd(2, 6) * (100 - u) / 60 + 0.8; } }
+if (u >= 55) { N.watchT -= dt; if (N.watchT <= 0) { N.watch = { x: cam.x + (ST.rand() < 0.5 ? -1 : 1) * VS.vw * 0.38, t: 0, near: (N.watch ? N.watch.near : 0) + 1 }; N.watchT = rnd(5, 8); SFX.growl(); } }
+if (N.watch) { N.watch.t += dt; if (N.watch.t > 1.4) N.watch = null; }
+if (u >= 80) { N.scareT -= dt; if (N.scareT <= 0) { jump(0.35); N.bat -= 4; N.scareT = rnd(7, 11); } }
+if (u >= 100 && !N.out) { N.out = 1; say("GET OUT. NOW.", 3); FX.flick = 2; }
+if (!N.tune) FX.statT = sp ? 0.08 : 0;
+}
+function drawNight() {
+const c = ST.ctx; view(ZOOM_YARD); drawPano("graveyard", "night");
+for (const h of N.hots) if (!h.done && onView(h.x, 0.6)) {
+const x = sx(h.x), y = sy(h.y), a = 0.35 + 0.25 * Math.sin(ST.time * 3 + h.x);
+if (h.kind === "coins") { c.fillStyle = `rgba(230,236,240,${a})`; for (let i = 0; i < h.coins; i++) c.fillRect(x - 8 + i * 7, y - 6, 4, 3); }
+else if (h.kind === "voice") { c.strokeStyle = `rgba(200,215,230,${a * 0.6})`; c.lineWidth = 1; c.beginPath(); c.arc(x, y - 40 * VS.s, (12 + (ST.time * 14 % 18)) * VS.s, 0, 7); c.stroke(); }
+else if (h.kind === "relic" && h.depth > 0) { c.fillStyle = "rgba(20,16,14,0.8)"; c.beginPath(); c.ellipse(x, y + 18 * VS.s, (16 + h.depth * 3) * VS.s, (5 + h.depth) * VS.s, 0, 0, 7); c.fill(); }
+else if (h.kind === "dig" && h.prog > 0) { c.fillStyle = "rgba(14,12,10,0.85)"; c.beginPath(); c.ellipse(x, y, (12 + h.prog * 6) * VS.s, (4 + h.prog * 2) * VS.s, 0, 0, 7); c.fill(); }
+}
+const sp = N.spirit; if (sp) { const hk = HAUNTS[sp.id], hu = sp.id === 1 ? 190 : sp.id === 2 ? 300 : sp.id === 3 ? 150 : 250;
+drawCut(hk.k, sp.x, sp.id === 3 ? sp.y - 120 : sp.y, hu, sp.a * (0.55 + 0.2 * Math.sin(ST.time * 17))); }
+if (N.watch) drawCut("tall", N.watch.x, 420, 260 + N.watch.near * 40, Math.min(0.5, N.watch.t * 2) * (N.watch.t > 1.1 ? 0.3 : 1));
+if (N.hole) drawCut("boy", N.hole.x, N.hole.y + 220, 460, N.hole.t < 0.05 ? 0 : 0.95);
+camFilter({ light: true }); drawFace();
+const t = target(), cx = ST.cw / 2, cy = ST.ch / 2;
+brackets(cx, cy, Math.min(ST.cw, ST.ch) * 0.14, "rgba(230,236,242,0.55)");
+if (t && t.hot) brackets(sx(t.hot.x), sy(t.hot.y) - 26 * VS.s, 30 * VS.s + 8, "rgba(240,244,248,0.9)");
+if (t && t.spirit) brackets(sx(t.spirit.x), sy(t.spirit.y) - 120 * VS.s, 70 * VS.s + 8, N.film ? "#e0242a" : "rgba(255,120,120,0.9)");
+if (sp && !onView(sp.x, 0.5)) { const left = sp.x < cam.x; c.globalAlpha = 0.5; c.drawImage(FF.tiles[ST.frameNo % 4], left ? 0 : ST.cw - 18, 0, 18, ST.ch); c.globalAlpha = 1; }
+}
+function nightHud() {
+const fs = ST.small ? 1 : ST.fs * 0.75, y = osd(ST.cw < 300 ? "REC" : "REC  NIGHT " + N.n);
+battery(ST.cw - 150 + (ST.small ? 14 : 0), 10, N.bat);
+ST.text("$" + D().cash, 8, y, "#f0f4f8", fs);
+bar(8 + ST.tw("$" + D().cash, fs) + 12, y, ST.small ? 34 : 80, N.unrest, "UNREST", N.unrest >= 80 ? "#e0242a" : "#b8c4d0");
+toast();
+if (ST.scene !== "play") return;
+const L = ST.L, by = L - 50, t = target();
+if (N.tune) { drawTuner(); ST.button("stop", 8, by, 70, 44, "STOP"); return; }
+const lw = ST.small ? 48 : 80; ST.button("leave", 8, by, lw, 44, "LEAVE");
+const ax = 8 + lw + 8, aw = ST.cw - 8 - ax, rw = Math.min(aw, ST.small ? (ST.cw < 300 ? 80 : 92) : 150), rx = ST.cw - rw - 8;
+if (t && t.spirit) ST.button("film", rx, by, rw, 44, N.film ? "FILMING" : "FILM IT", { on: true, edge: "#e0242a" });
+else if (t && t.hot) {
+const h = t.hot, lbl = h.kind === "coins" ? "COINS" : h.kind === "dig" ? "FRESH GRAVE " + h.prog + "/5" : h.kind === "relic" ? "OLD GRAVE" : "WHISPERING GRAVE";
+ST.text(lbl, ST.cw / 2, by - 9 * fs - 4, "#f0f4f8", fs, "c");
+if (h.kind === "relic" && h.depth >= 3) { const w2 = Math.min(130, (aw - 6) / 2);
+ST.button("take", ST.cw - 8 - 2 * w2 - 6, by, w2, 44, "TAKE $" + (10 + (h.depth - 3) * 15), { on: true }); ST.button("act", ST.cw - 8 - w2, by, w2, 44, "DIG"); }
+else ST.button("act", rx, by, rw, 44, actLabel(h));
+}
+}
+function drawTuner() {                            // the voice recorder dial (code-drawn)
+const c = ST.ctx, T = N.tune, w = Math.min(ST.cw - 40, 300), x = (ST.cw - w) / 2, y = ST.ch * 0.36, fs = ST.small ? 1 : ST.fs * 0.75;
+c.fillStyle = "rgba(6,8,10,0.78)"; c.fillRect(x - 8, y - 22 - 7 * fs, w + 16, 52 + 7 * fs);   // the dial IS the gameplay here (not counted as HUD)
+ST.text("TUNE THE STATIC: DRAG LEFT OR RIGHT", ST.cw / 2, y - 16 - 7 * fs + 4, "#dfe6ee", fs, "c");
+c.fillStyle = "#2a3540"; c.fillRect(x, y, w, 10);
+for (let i = 0; i <= 20; i++) { c.fillStyle = "#7f8c99"; c.fillRect(x + i * w / 20, y + (i % 5 ? 4 : 0), 1, i % 5 ? 6 : 10); }
+c.fillStyle = "#e0242a"; c.fillRect(x + T.f / 100 * w - 1.5, y - 6, 3, 22);
+const sig = T.sig || 0; c.fillStyle = "#1a2129"; c.fillRect(x, y + 16, w, 8); c.fillStyle = sig > 0.8 ? "#e8eef4" : "#8fa0b0"; c.fillRect(x, y + 16, w * sig, 8);
+c.fillStyle = "#e0242a"; c.fillRect(x, y + 26, w * Math.min(1, T.hold / 1.5), 3);
+}
+function tallyDraw() {
+const c = ST.ctx, fs = ST.small ? 1 : ST.fs * 0.75, big = ST.small ? 1.5 : ST.fs;
+c.fillStyle = "rgba(0,0,0,0.72)"; c.fillRect(0, 0, ST.cw, ST.ch);
+let y = ST.small ? 48 : 70;
+ST.text(N.died ? "BATTERY DEAD" : "YOU GOT OUT", ST.cw / 2, y, N.died ? "#e0242a" : "#e8eef4", big, "c"); y += 7 * big + 8;
+const lines = ["NIGHT " + N.n + ": +$" + N.earned + (N.dropped ? ", DROPPED $" + N.dropped + " RUNNING" : "") + ". CASH $" + D().cash,
+N.got.length ? "CAUGHT: " + N.got.map(i => HAUNTS[i].name).join(", ") : "NOTHING CAUGHT TONIGHT."];
+y = ST.lines(lines, y, "#dfe6ee", fs);
+if (ST.scene === "play") ST.row([{ id: "tohouse", label: "TO THE HOUSE" }], Math.min(y + 6, ST.L - 50));
+}
+function beginBuild() {
+const d = D(); if (d.name < 0) { d.name = Math.floor(ST.rand() * NAMES.length); ST.save.write(); }
+B = { sel: 0 }; fixSel(); ph = "build"; cam = { x: W / 2, y: H / 2 };
+}
+const forSale = () => ROOMS.filter(r => r.id && !D().rooms.includes(r.id));
+function fixSel() { const n = forSale().length; B.sel = n ? ((B.sel % n) + n) % n : 0; }
+function buy() {
+const r = forSale()[B.sel]; if (!r) return; const d = D();
+if (d.cash < r.cost) { say("NOT ENOUGH CASH. ANOTHER NIGHT IN THE GRAVEYARD?", 2); SFX.beep(); return; }
+d.cash -= r.cost; d.rooms.push(r.id); ST.save.write(); fixSel(); SFX.creak(); say(r.name + " ADDED. ROOM " + d.rooms.length + " ON THE PATH.", 2);
+}
+const hand = px => `italic ${px}px "Bradley Hand","Segoe Print","Ink Free",cursive`;
+function drawBuild() {
+const c = ST.ctx, w = ST.cw, h = ST.ch, d = D();
+c.fillStyle = "#b9a878"; c.fillRect(0, 0, w, h);
+c.strokeStyle = "rgba(60,80,110,0.18)"; c.lineWidth = 1; c.beginPath();
+for (let x = 0; x < w; x += 16) { c.moveTo(x + 0.5, 0); c.lineTo(x + 0.5, h); } for (let y = 0; y < h; y += 16) { c.moveTo(0, y + 0.5); c.lineTo(w, y + 0.5); } c.stroke();
+for (let i = 0; i < 7; i++) { const x = (i * 97 + 31) % w, y = (i * 61 + 17) % h; c.fillStyle = "rgba(90,70,30,0.10)"; c.beginPath(); c.ellipse(x, y, 30 + i * 6, 18 + i * 4, i, 0, 7); c.fill(); }
+const rs = d.rooms.map(i => ROOMS[i]), top = ST.small ? 46 : 54, bot = buildRowsTop() - (ST.small ? 20 : 44);
+const n = rs.length, gap = 10, bw = Math.min(ST.small ? 70 : 92, (w - 20 - gap * (n - 1)) / n), bh = Math.max(24, Math.min(bot - top - 14, ST.small ? 34 : 120));
+const x0 = (w - (bw * n + gap * (n - 1))) / 2, y0 = top + Math.max(0, (bot - top - bh) / 2);
+c.strokeStyle = "rgba(40,60,90,0.55)"; c.setLineDash([4, 4]); c.lineWidth = 2; c.beginPath(); c.moveTo(x0, y0 + bh / 2); c.lineTo(x0 + n * (bw + gap) - gap, y0 + bh / 2); c.stroke(); c.setLineDash([]);
+rs.forEach((r, i) => {
+const x = x0 + i * (bw + gap);
+c.fillStyle = "rgba(220,205,160,0.9)"; c.fillRect(x, y0, bw, bh); c.strokeStyle = "#2b2f3a"; c.lineWidth = 2.5; c.strokeRect(x, y0, bw, bh);
+c.fillStyle = "#b9a878"; if (i < n - 1) c.fillRect(x + bw - 2, y0 + bh / 2 - 6, 4, 12);
+c.fillStyle = "#2b2f3a"; c.font = hand(Math.max(9, Math.min(15, bw / 6.5))); c.textAlign = "center"; c.fillText(r.name.toLowerCase(), x + bw / 2, y0 + bh / 2 + 4);
+c.font = hand(ST.small ? 9 : 12); c.fillText(String(i + 1), x + 9, y0 + 13);
+if (!ST.small && r.note && bh > 60) { c.save(); c.translate(x + bw / 2, y0 + bh + 14 + (i % 2) * 12); c.rotate(-0.05); c.fillStyle = "rgba(120,20,20,0.75)"; c.font = hand(10);
+c.fillText(r.note.toLowerCase(), 0, 0); c.restore(); }
+});
+c.textAlign = "left";
+const m = Math.max(w, h), lx = w / 2 + Math.sin(ST.time * 0.7) * w * 0.08, ly = h * 0.42 + Math.cos(ST.time * 0.5) * h * 0.05;
+const g = c.createRadialGradient(lx, ly, m * 0.1, lx, ly, m * 0.7); g.addColorStop(0, "rgba(255,240,200,0.08)"); g.addColorStop(0.5, "rgba(0,0,0,0.35)"); g.addColorStop(1, "rgba(0,0,0,0.88)");
+c.fillStyle = g; c.fillRect(0, 0, w, h);
+camFilter({});
+}
+function buildRowsTop() { return ST.L - 50 - 50; }
+function buildHud() {
+const d = D(), fs = ST.small ? 1 : ST.fs * 0.75, h = myHouse(), r = rating(h);
+ST.text("$" + d.cash + (ST.small ? "" : "  " + houseName(h)), 52, 10, "#f0f4f8", fs);
+ST.text((ST.small ? "SCARE " : "SCARE RATING ") + r.n + " " + r.rank, 52, 10 + 9 * fs + 3, "#dfe6ee", fs);
+const y1 = buildRowsTop(), y2 = ST.L - 50;
+const box = d.haunts.length ? d.haunts.map(i => HAUNTS[i].name).join(", ") : "EMPTY. CATCH SOMETHING IN THE GRAVEYARD.";
+const ln = ST.wrap("HAUNT BOX " + d.haunts.length + ": " + box, ST.cw - 16, fs), lh = 7 * fs + 3, nl = Math.min(ln.length, ST.small ? 1 : 2);
+for (let i = 0; i < nl; i++) ST.text(ln[i] + (i === nl - 1 && ln.length > nl ? "..." : ""), 8, y1 - 6 - (nl - i) * lh, "#f0f4f8", fs);
+toast();
+if (ST.scene !== "play") return;
+const fsl = forSale(), r0 = fsl[B.sel];
+if (r0) {
+const bw = ST.cw - 16 - 2 * 52;
+ST.button("prev", 8, y1, 44, 44, "<"); ST.button("next", ST.cw - 52, y1, 44, 44, ">");
+ST.button("buy", 60, y1, bw, 44, (d.cash >= r0.cost ? "BUY " : "NEED ") + r0.name + " $" + r0.cost, { on: d.cash >= r0.cost });
+} else ST.text("HOUSE COMPLETE. EVERY ROOM IS YOURS.", ST.cw / 2, y1 + 16, "#f0f4f8", fs, "c");
+const hw = (ST.cw - 16 - 8) / 2;
+ST.button("night", 8, y2, hw, 44, "NIGHT " + ((d.night || 0) + 1));
+ST.button("walk", 16 + hw, y2, hw, 44, "WALK IT", { on: true });
+}
+const ALLOWED = { spirit: ["enter", "lookaway", "still", "door"], relic: ["enter", "lookaway", "still"], sound: ["enter", "still", "door"] };
+function placeHaunts(house) {
+const seq = house.rooms.length > 1 ? house.rooms.concat([0]) : [0], cap = 3, slots = seq.map(() => []);
+let pool = shuffle(house.haunts.slice());
+if (pool.length > seq.length * cap) pool = pool.slice(0, seq.length * cap);
+pool.sort((a, b) => HAUNTS[a].w + rnd(0, 5) - HAUNTS[b].w - rnd(0, 5));          // weaker first, stronger later (escalation)
+pool.forEach((id, order) => {
+const hk = HAUNTS[id]; let best = -1, bs = -1e9;
+seq.forEach((rid, i) => {
+if (slots[i].length >= cap) return; const here = slots[i].map(e => e.h);
+let s = (hk.pref.includes(rid) ? 3 : 0) + (i / seq.length) * hk.w / 4 + rnd(0, 2.5) - here.length * 2.2;
+if ((id === 6 && here.includes(8)) || (id === 8 && here.includes(6))) s += 5;
+if ((id === 1 && here.includes(4)) || (id === 4 && here.includes(1))) s += 3;
+if (i === seq.length - 1 && hk.w >= 12) s += 2;                                 // the front door gets something big
+if (s > bs) { bs = s; best = i; }
+});
+if (best < 0) return;
+const used = slots[best].map(e => e.trig), usedSp = slots[best].map(e => e.spot);
+const opts = hk.trig.filter(t => !used.includes(t)), trig = opts.length ? pick(opts) : pick(hk.trig);
+const free = [0, 1, 2].filter(k => !usedSp.includes(k)), spot = free.length ? pick(free) : Math.floor(rnd(0, 3));
+slots[best].push({ h: id, trig, spot, state: "wait", at: rnd(0.6, 2.0), t: 0, away: 0 });
+});
+for (const sl of slots) {                       // combos inside a room
+const mb = sl.find(e => e.h === 6), cr = sl.find(e => e.h === 8); if (mb && cr) { mb.combo = 8; cr.state = "merged"; }
+}
+return { seq, slots };
+}
+function beginWalk(house) {
+lastHouse = house; const plan = placeHaunts(house);
+WK = { house, plan, i: -1, t: 0, idle: 0, play: null, queue: [], doorGo: false, scares: 0, total: plan.slots.reduce((a, s) => a + s.filter(e => e.state !== "merged").length, 0), trans: 0 };
+mirrorSpirit = house.haunts.filter(i => HAUNTS[i].type === "spirit"); ph = "walk"; enterRoom(0);
+}
+let mirrorSpirit = [];
+function enterRoom(i) {
+WK.i = i; WK.t = 0; WK.idle = 0; WK.doorGo = false; WK.queue = []; WK.trans = 0.6;
+cam = { x: W / 2, y: H * 0.56 }; FX.black = 0.35; SFX.creak(); SFX.thud(0.1, 0, 0.12); SFX.thud(0.55, 0, 0.12);
+if (i === 0) say(WK.house === lastHouse && mode === "visit" ? "A FRIEND'S HOUSE. LOOK AROUND." : "LOOK AROUND. DRAG OR USE THE ARROWS.", 2.5);
+}
+const room = () => ROOMS[WK.plan.seq[WK.i]];
+const lastRoom = () => WK.i === WK.plan.seq.length - 1;
+function startEvent(e, reveal) {
+e.state = "play"; e.t = reveal ? 0.7 : 0; e.reveal = reveal; WK.play = e;
+if (!reveal) { duck(true); FX.statT = 0.35; FX.flick = 0.7; } else { SFX.soft(); }
+const hk = HAUNTS[e.h];
+if (hk.k === "mirror") e.inside = mirrorSpirit.length ? pick(mirrorSpirit) : 0;
+}
+function endEvent(e) { e.state = "done"; WK.play = null; WK.scares++; duck(false); FX.statT = 0; }
+function perform(e, dt) {
+const was = e.t; e.t += dt; const t = e.t - 0.7, hk = HAUNTS[e.h], sp = room().spots[e.spot], once = at => was - 0.7 < at && t >= at;
+if (t < 0) return false;
+if (once(0)) { FX.statT = 0; FX.flick = 0; }
+switch (hk.k) {
+case "woman": if (once(0)) SFX.whisper(0, (sp.x - cam.x) / 300, 0.1); if (once(1.4)) { SFX.sting(); FX.glitch = 0.4; } return t > 1.75;
+case "boy": if (once(0)) SFX.whisper(0, 0, 0.06); if (once(1.2)) FX.black = 0.12; if (once(1.32)) { SFX.sting(); SFX.whisper(0.1, 0.5, 0.14); } if (once(2.2)) FX.glitch = 0.3; return t > 2.4;
+case "tall": if (once(0)) SFX.growl(); if (once(0.8) || once(1.6)) { FX.glitch = 0.18; SFX.thud(0, 0, 0.3); } if (once(2.4)) { FX.black = 0.2; SFX.deep(); } return t > 2.6;
+case "face": if (once(0)) jump(0.6); return t > 0.75;
+case "doll": if (once(0)) SFX.creak(); if (once(1.4)) FX.black = 0.1; if (once(1.5)) SFX.soft(); if (once(2.4)) FX.glitch = 0.25; return t > 2.5;
+case "mirror": if (once(1.0)) SFX.whisper(0, -0.6, 0.1); if (once(2.0)) { FX.whip = 0.3; cam.x = cam.x > W / 2 ? cam.x - VS.vw * 0.8 : cam.x + VS.vw * 0.8; SFX.sting(); FX.glitch = 0.4; } return t > 2.4;
+case "musicbox": if (once(0)) playLullaby(3.1); if (e.combo && [1, 1.5, 2, 2.5].some(once)) SFX.sob(0, 0.7, 0.035); if (once(3.2)) { SFX.slam(); FX.glitch = 0.3; } return t > 3.4;
+case "whispers": if ([0, 0.6, 1.2, 1.8].some(once)) SFX.whisper(0, Math.sin(t * 3), 0.13); if (once(0.4)) FX.flick = 1.6; if (once(2.4)) { SFX.whisper(0, 1, 0.22); FX.glitch = 0.25; } return t > 2.6;
+case "crying": if ([0, 0.5, 1, 1.5, 2, 2.4].some(once)) SFX.sob(0, -0.5, 0.04); if (once(3.0)) FX.flick = 0.4; return t > 3.2;
+case "footsteps": { const beats = [0, 0.6, 1.1, 1.5, 1.85, 2.15, 2.4]; beats.forEach((b, k) => { if (once(b)) SFX.thud(0, -1 + k / 3, 0.12 + k * 0.05); });
+if (once(2.6)) { SFX.slam(); FX.shake = 0.5; FX.glitch = 0.3; } return t > 2.9; }
+}
+return true;
+}
+function walkUpdate(dt) {
+const d = ST.dir(); if (Math.abs(d.x) + Math.abs(d.y) > 0.05) WK.idle = 0; else WK.idle += dt;
+cam.x += d.x * 260 * dt; cam.y += d.y * 140 * dt; view(ZOOM_ROOM);
+WK.t += dt; if (WK.trans > 0) WK.trans -= dt;
+if (WK.exit != null) { WK.exit += dt; if (WK.exit > 2.8) { finishWalk(); } return; }
+const evs = WK.plan.slots[WK.i];
+if (WK.play) { if (perform(WK.play, dt)) { endEvent(WK.play); } return; }
+if (WK.queue.length) { startEvent(WK.queue.shift(), false); return; }
+if (WK.doorGo) { nextRoom(); return; }
+for (const e of evs) {
+if (e.state !== "wait" && e.state !== "armed") continue; const sp = room().spots[e.spot], vis = onView(sp.x, 0.42);
+if (e.trig === "enter" && WK.t >= e.at) return startEvent(e, false);
+if (e.trig === "still" && WK.idle >= 2.2 && WK.t > 1.2) return startEvent(e, false);
+if (e.trig === "lookaway") {
+if (!vis) { e.away += dt; if (e.away > 0.9) e.state = "armed"; }
+if (e.state === "armed" && onView(sp.x, 0.3)) return startEvent(e, true);
+if (WK.t > 7 && e.state === "wait") { FX.whip = 0.3; cam.x = sp.x; SFX.whisper(0, 0, 0.15); return startEvent(e, true); }   // it is behind you
+}
+}
+}
+function door() {
+if (!WK || WK.play || WK.queue.length || WK.doorGo || WK.exit != null || WK.t < 1.5) return;
+const evs = WK.plan.slots[WK.i], left = evs.filter(e => e.state === "wait" || e.state === "armed");
+left.sort((a, b) => (b.trig === "door") - (a.trig === "door"));
+WK.queue = left; WK.doorGo = true; SFX.creak();
+}
+function nextRoom() {
+if (lastRoom()) { WK.exit = 0; FX.black = 3; SFX.slam(); duck(true); return; }
+enterRoom(WK.i + 1);
+}
+function finishWalk() {
+const d = D(), h = WK.house; d.walks = (d.walks || 0) + 1; if (mode === "own") d.best = Math.max(d.best || 0, rating(h).n); ST.save.write();
+WK.exit = null; ph = "card"; duck(false); ST.end();
+}
+function drawWalk() {
+const c = ST.ctx, r = room(); view(ZOOM_ROOM); drawPano(r.k, "walk");
+const e = WK.play;
+if (e && e.t >= 0.7) {
+const hk = HAUNTS[e.h], sp = r.spots[e.spot], t = e.t - 0.7, fl = 0.75 + 0.25 * Math.sin(ST.time * 31);
+if (hk.k === "woman") { if (t < 1.4) drawCut("woman", sp.x, sp.y, sp.h, fl * Math.min(1, t * 3)); else { const u = Math.min(1, (t - 1.4) / 0.25);
+drawCut("woman", 0, 0, 0, 1, { sx: sx(sp.x) + (ST.cw / 2 - sx(sp.x)) * u, sy: sy(sp.y) + (ST.ch * 1.6 - sy(sp.y)) * u, hpx: sp.h * VS.s + (ST.ch * 2.2 - sp.h * VS.s) * u }); } }
+else if (hk.k === "boy") { if (t < 1.2) drawCut("boy", sp.x, sp.y, sp.h * 0.75, fl); else if (t > 1.32 && t < 2.3) drawCut("boy", 0, 0, 0, 0.95, { sx: ST.cw / 2, sy: ST.ch * 1.25, hpx: ST.ch * 1.5 }); }
+else if (hk.k === "tall") { const st = t < 0.8 ? 0 : t < 1.6 ? 1 : 2, k = [1, 1.6, 2.6][st], x = sp.x + (cam.x - sp.x) * st * 0.4; if (t < 2.4) drawCut("tall", x, sp.y + st * 60, sp.h * 1.15 * k, 0.95); }
+else if (hk.k === "doll") { if (t < 1.4) drawCut("doll", sp.x, sp.y, sp.h * 0.42, 1); else if (t > 1.5) drawCut("doll", cam.x, cam.y + VS.vh * 0.45, VS.vh * 0.55, 1, { flip: true }); }
+else if (hk.k === "mirror") {
+const mh = sp.h * 0.95, x = sx(sp.x), y = sy(sp.y);
+if (t < 2.0) { drawCut("mirror", sp.x, sp.y, mh, 1);
+if (t > 1.0) { const im = ST.paint.img.mirror, mw = im ? mh * VS.s * im.width / im.height : mh * VS.s * 0.4; c.save(); c.beginPath(); c.rect(x - mw * 0.3, y - mh * VS.s * 0.88, mw * 0.6, mh * VS.s * 0.62); c.clip();
+drawCut(HAUNTS[e.inside].k, sp.x, sp.y - mh * 0.28, mh * 0.6, 0.7 * fl); c.restore(); } } }
+else if (hk.k === "musicbox") { if (t < 3.2) drawCut("musicbox", sp.x, sp.y, sp.h * 0.3, 1); }
+}
+camFilter({ light: true }); drawFace();
+if (WK.exit != null) drawTapeCard(Math.min(1, WK.exit / 0.4));
+}
+function walkHud() {
+const fs = ST.small ? 1 : ST.fs * 0.75, y = osd("REC");
+if (WK.exit != null) return;
+ST.text((WK.i + 1) + "/" + WK.plan.seq.length + " " + (lastRoom() && WK.plan.seq.length > 1 ? "BACK TO THE FRONT HALL" : room().name), 8, y, "#f0f4f8", fs);
+toast();
+if (ST.scene !== "play") return;
+if (WK.t >= 1.5 && !WK.play && !WK.queue.length && !WK.doorGo) ST.button("door", ST.cw - (ST.small ? 128 : 168), ST.L - 50, ST.small ? 120 : 160, 44, lastRoom() ? "FRONT DOOR" : "NEXT DOOR", { on: true });
+}
+function drawTapeCard(a) {                        // the found-footage title card when the tape ends
+const c = ST.ctx, h = WK ? WK.house : lastHouse, fs = ST.small ? 1 : ST.fs;
+c.fillStyle = `rgba(0,0,0,${a})`; c.fillRect(0, 0, ST.cw, ST.ch); if (!h) return;
+const lines = [houseName(h), "FOUND FOOTAGE", "TAPE " + pad2((D().walks || 0) + 1) + " - RECOVERED NOV.01.1997"];
+const n = Math.floor(((WK && WK.exit) || 9) * 26); let k = 0, y = ST.ch * 0.3;
+for (const l of lines) { const s = l.slice(0, Math.max(0, n - k)); k += l.length; ST.trackUI = false; ST.text(s, ST.cw / 2, y, "#e4eaf0", fs, "c"); ST.trackUI = true; y += 9 * fs + 8; }
+}
+function startOwn(next) { mode = "own"; nextStart = next || null; }
+
+const GAME = {
+presents: true,
+title: {
+name: "HAUNTED HOUSE BUILDER",
+lines: ["Drag to look around. Tap to act.", "Warning: jump scares. Best with sound on."],
+extra: [{ id: "myhouse", label: () => mode === "visit" ? "MY OWN" : "MY HOUSE" }],
+footer: () => mode === "visit" && visit ? "A FRIEND'S HOUSE CODE IS LOADED. PLAY TO WALK IT." : D().best ? "BEST SCARE RATING: " + D().best : "",
+cardLine: "PLAY IT RIGHT HERE IN THE POST",
+},
+tour: [{ name: "tally", query: "stage=4", wait: 500 }, { name: "build", query: "stage=2", wait: 500 }, { name: "walk", query: "stage=3", wait: 600, hud: true },
+{ name: "voice tuner", query: "stage=5", wait: 500, hud: true }],
+saveDefaults: { cash: 0, rooms: [0], haunts: [], night: 0, name: -1, best: 0, walks: 0 },
+init() {
+const d = D(); if (!Array.isArray(d.rooms) || d.rooms[0] !== 0) d.rooms = [0]; if (!Array.isArray(d.haunts)) d.haunts = [];
+visit = codeFromUrl(); if (visit) mode = "visit";
+addEventListener("hashchange", () => { visit = codeFromUrl(); if (visit) mode = "visit"; });
+},
+start() {
+for (const k in FX) if (typeof FX[k] === "number") FX[k] = 0; msg = { s: "", t: 0 }; WK = null; N = null;
+
+if (mode === "visit" && visit) { beginWalk(visit); return; }
+if (nextStart === "build") { nextStart = null; beginBuild(); return; }
+beginNight();
+},
+update(dt) {
+fxUpdate(dt);
+if (ph === "night") nightUpdate(dt);
+else if (ph === "walk") walkUpdate(dt);
+else { const d = ST.dir(); cam.x += d.x * 200 * dt; cam.y += d.y * 120 * dt; cam.x = ST.clamp(cam.x, 0, W); cam.y = ST.clamp(cam.y, 0, H); }
+},
+draw() {
+const c = ST.ctx;
+if (ST.scene === "title" || !ph) {
+if (!ST.paint.scene("title", "title")) { c.fillStyle = "#0b0f14"; c.fillRect(0, 0, ST.cw, ST.ch); }
+camFilter({}); const fs = ST.small ? 1 : ST.fs * 0.75;
+if (Math.floor(ST.time * 1.4) % 2 === 0) { c.fillStyle = "#e0242a"; c.beginPath(); c.arc(56, 12 + 3.5 * fs, 3.2 * fs, 0, 7); c.fill(); }
+ST.trackUI = false; ST.text("PLAY", 62 + 6 * fs, 9, "#f0f4f8", fs); ST.trackUI = true;
+return;
+}
+if (ph === "night" || ph === "tally") { drawNight(); if (ph === "tally") tallyDraw(); }
+else if (ph === "build") drawBuild();
+else if (ph === "walk") drawWalk();
+else { c.fillStyle = "#000"; c.fillRect(0, 0, ST.cw, ST.ch); camFilter({}); if (ST.scene !== "over") drawTapeCard(1); }
+},
+hud() {
+if (ph === "night") nightHud(); else if (ph === "build") buildHud(); else if (ph === "walk") walkHud();
+},
+button(id) {
+if (id === "myhouse") { if (mode === "visit") { mode = "own"; SFX.beep(); return; } startOwn("build"); ST.start(); return; }
+if (ph === "night") { if (id === "leave") endNight(true); else if (id === "stop") { N.tune = null; FX.statT = 0; } else act(id); return; }
+if (ph === "tally" && id === "tohouse") { beginBuild(); SFX.beep(); return; }
+if (ph === "build") {
+if (id === "prev") { B.sel--; fixSel(); SFX.beep(); } else if (id === "next") { B.sel++; fixSel(); SFX.beep(); }
+else if (id === "buy") buy(); else if (id === "night") beginNight(); else if (id === "walk") { mode = "own"; beginWalk(myHouse()); }
+return;
+}
+if (ph === "walk" && id === "door") door();
+},
+key(code) {
+if (ST.scene !== "play" || (code !== "Enter" && code !== "Space" && code !== "KeyE")) return false;
+const b = ST.btns.find(q => ["film", "act", "door", "tohouse", "walk"].includes(q.id)); if (b) { ST.press(b.id); return true; }
+return false;
+},
+song(scene) {
+if (scene === "title") return "title"; if (scene === "over") return "over";
+return ph === "build" ? "build" : ph === "walk" || ph === "card" ? "walk" : "night";
+},
+over() {
+const h = lastHouse || myHouse(), r = rating(h), code = encode(h), sc = WK ? WK.scares : 0;
+try { ST.brag.link = () => location.href.split("#")[0].split("?")[0].replace(/game(\.test)?\.html$/, "") + "?v=" + ST.cfg.v + "#h=" + code; } catch (e) {}
+return { win: true, title: "TAPE ENDS", lines: [houseName(h) + ": SCARE RATING " + r.n + " (" + r.rank + ")", "YOU SURVIVED " + sc + " HAUNT" + (sc === 1 ? "" : "S") + ". HOUSE CODE " + code],
+brag: "My house scored " + r.n + " (" + r.rank.toLowerCase() + "). House code " + code + ". Walk it if you dare." };
+},
+hook: () => ({
+player: { x: +cam.x.toFixed(1), y: +cam.y.toFixed(1) }, phase: ph, mode, left: N && ph === "night" ? +N.bat.toFixed(2) : WK ? WK.i : 0, hp: 1,
+cash: D().cash, rooms: D().rooms.slice(), haunts: D().haunts.slice(), camView: { vw: Math.round(VS.vw), vh: Math.round(VS.vh) },
+night: N ? { n: N.n, unrest: +N.unrest.toFixed(1), bat: +N.bat.toFixed(1), got: N.got.slice(), tune: N.tune ? { f: +N.tune.f.toFixed(1), T: +N.tune.T.toFixed(1), hold: +N.tune.hold.toFixed(2) } : null,
+spirit: N.spirit ? { id: N.spirit.id, x: Math.round(N.spirit.x), a: +N.spirit.a.toFixed(2) } : null, film: !!N.film, died: N.died,
+hots: N.hots.map(h => ({ x: h.x, kind: h.kind, done: !!h.done, depth: h.depth || 0, prog: h.prog || 0 })) } : null,
+walk: WK ? { i: WK.i, rooms: WK.plan.seq.slice(), scares: WK.scares, total: WK.total, playing: WK.play ? HAUNTS[WK.play.h].k : null, exit: WK.exit,
+placed: WK.plan.slots.map(s => s.map(e => ({ h: e.h, trig: e.trig, spot: e.spot, state: e.state }))) } : null,
+code: encode(lastHouse || myHouse()), visit: visit ? encode(visit) : null, fx: { face: FX.face > 0, glitch: FX.glitch > 0 },
+}),
+};
+ST.run(GAME);
+</script>
+</body>
+</html>
